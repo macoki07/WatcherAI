@@ -3,10 +3,23 @@ import Background from "./components/Background";
 import Button from "./components/Button";
 import InputBox from "./components/InputBox";
 import { FiDownload, FiUpload } from "react-icons/fi";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Header from "./components/Header";
+import axios from "axios";
+import TextBox from "./components/TextBox";
 
 function App() {
+  const [arr, setArr] = useState([]);
+
+  const APIExample = async () => {
+    const res = await axios.get("http://localhost:8080/api/users");
+    setArr(res.data.users);
+  };
+
+  useEffect(() => {
+    APIExample();
+  }, []);
+
   const [url, setUrl] = useState("");
 
   const [file, setFile] = useState<File | null>(null);
@@ -94,27 +107,45 @@ function App() {
           {/* Results Section */}
           <div className="flex gap-4">
             <div className="flex-1 space-y-4">
-              <InputBox
+              {/* <InputBox
                 variant="translucent"
                 label="Title"
                 disabled
                 width="100%"
+              /> */}
+              <TextBox
+                label="Title"
+                variant="translucent"
+                width="100%"
               />
-              <InputBox
+              {/* <InputBox
                 variant="translucent"
                 label="Description"
                 disabled
                 height="220px"
                 width="100%"
+              /> */}
+              <TextBox
+                label="Description"
+                variant="translucent"
+                width="100%"
+                rows={4}
               />
             </div>
             <div className="flex-1">
-              <InputBox
+              {/* <InputBox
                 variant="translucent"
                 label="Results"
                 disabled
                 height="300px"
                 width="100%"
+              /> */}
+              <TextBox
+                label="Results"
+                variant="translucent"
+                width="100%"
+                rows={8}
+                value={arr.join('\n')}
               />
             </div>
           </div>
