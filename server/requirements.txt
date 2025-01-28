@@ -1,0 +1,9 @@
+flask
+flask-CORS
+ollama
+youtube-transcript-api
+asyncio
+tiktoken
+yt-dlp
+pandas
+openpyxl

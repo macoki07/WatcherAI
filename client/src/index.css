@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'ClashDisplay';
+  src: url('https://fonts.cdnfonts.com/css/clash-display') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  body {
+    font-family: 'ClashDisplay', system-ui, -apple-system, sans-serif;
+    @apply bg-black;
+  }
+}
+
+@layer components {
+  .green-radial-bg {
+    @apply absolute inset-0;
+    background: radial-gradient(circle at center, rgba(0, 255, 0, 0.1) 0%, rgba(0, 0, 0, 1) 100%);
+  }
+
+  .green-glow {
+    @apply absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2;
+    width: 40rem;
+    height: 40rem;
+    @apply bg-green-500/30 rounded-full blur-[128px];
+  }
+}
