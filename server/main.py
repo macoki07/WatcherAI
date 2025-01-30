@@ -1,18 +1,17 @@
-from flask import Flask, jsonify
+from flask import Flask
 from flask_cors import CORS
+from api import api
 
-app = Flask(__name__)
-cors = CORS(app, origins='*')
+def create_app():
+    app = Flask(__name__)
+    CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
 
-@app.route("/api/users", methods=['GET'])
-def users():
-    return jsonify({
-        "users": [
-            "arpan",
-            "jessie",
-            "jay"
-        ]
-    })
+    # Register Blueprint from api.py
+    app.register_blueprint(api, url_prefix='/api')
+    
+    
+    return app
 
-if __name__ == "__main__":
+if __name__ == '__main__':
+    app = create_app()
     app.run(debug=True, port=8080)
