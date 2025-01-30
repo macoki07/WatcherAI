@@ -8,7 +8,85 @@ import Header from "./components/Header";
 import axios from "axios";
 import TextBox from "./components/TextBox";
 
+type Metadata = {
+  link: string;
+  title: string;
+  description: string;
+  uploader: string;
+  uploadDate: string;
+  results: string;
+  processed: boolean;
+};
+
 function App() {
+  const [url, setUrl] = useState("");
+  const [metadata, setMetadata] = useState<Metadata | null>(null);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const summariseUrl = async () => {
+    setLoading(true);
+    setMetadata(null);
+    setResult(null);
+
+    try {
+      // Make a POST request to your Flask server
+      const metadataRes = await axios.post(
+        "http://localhost:8080/api/single/get_metadata",
+        { url: url },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const responseData = metadataRes.data;
+      console.log("Raw response data:", responseData);
+
+      if (!responseData.success) {
+        throw new Error(responseData.message || "Failed to fetch metadata");
+      }
+
+      // Access the nested metadata object
+      const receivedMetadata = responseData.metadata;
+      console.log("Received Metadata:", receivedMetadata);
+
+      // Update state with the received metadata
+      setMetadata({
+        link: receivedMetadata.Link,
+        title: receivedMetadata.Title,
+        description: receivedMetadata.Description,
+        uploader: receivedMetadata.Uploader,
+        uploadDate: receivedMetadata["UploadDate"],
+        results: receivedMetadata.Results,
+        processed: receivedMetadata.Processed,
+      });
+
+      // // Immediately call summarize endpoint with the same URL
+      // const summariseRes = await fetch(
+      //   "http://localhost:5000/api/single/summarise",
+      //   {
+      //     method: "POST",
+      //     headers: {
+      //       "Content-Type": "application/json",
+      //     },
+      //     body: JSON.stringify({ url }),
+      //   }
+      // );
+      // if (!summariseRes.ok) {
+      //   throw new Error("Failed to fetch summary");
+      // }
+      // const summaryData = await summariseRes.json();
+      // setResult(summaryData.summary);
+    } catch (error) {
+      console.error(error);
+      // You can handle errors (e.g., show a toast or error message)
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const [arr, setArr] = useState([]);
 
   const APIExample = async () => {
@@ -16,11 +94,19 @@ function App() {
     setArr(res.data.users);
   };
 
-  useEffect(() => {
-    APIExample();
-  }, []);
+  const handleExampleClick = async () => {
+    try {
+      await summariseUrl();
+      // If successful, you can do something here
+    } catch (err) {
+      console.error("Error during summarise:", err);
+      // Handle the error (e.g., set an error message in state)
+    }
+  };
 
-  const [url, setUrl] = useState("");
+  // useEffect(() => {
+  //   APIExample();
+  // }, []);
 
   const [file, setFile] = useState<File | null>(null);
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,10 +141,8 @@ function App() {
                 />
               </div>
               <div className="flex gap-2">
-                <Button>Summarise</Button>
-                <Button color="white">
-                  Generate Ideas
-                </Button>
+                <Button onClick={handleExampleClick}>Summarise</Button>
+                <Button color="white">Generate Ideas</Button>
               </div>
             </div>
           </div>
@@ -123,7 +207,12 @@ function App() {
                 disabled
                 width="100%"
               /> */}
-              <TextBox label="Title" variant="translucent" width="100%" />
+              <TextBox
+                label="Title"
+                variant="translucent"
+                width="100%"
+                value={metadata?.title || ""}
+              />
               {/* <InputBox
                 variant="translucent"
                 label="Description"
@@ -136,6 +225,7 @@ function App() {
                 variant="translucent"
                 width="100%"
                 rows={4}
+                value={metadata?.description || ""}
               />
             </div>
             <div className="flex-1">
