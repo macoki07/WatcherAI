@@ -44,13 +44,23 @@ function App() {
         <div className="space-y-8">
           {/* URL Input Section */}
           <div className="space-y-4">
-            <InputBox
-              variant="translucent"
-              placeholder="Paste YouTube URL"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              width="100%"
-            />
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <InputBox
+                  variant="translucent"
+                  placeholder="Paste YouTube URL"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  width="100%"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button>Summarise</Button>
+                <Button color="white">
+                  Generate Ideas
+                </Button>
+              </div>
+            </div>
           </div>
 
           {/* Divider */}
@@ -98,9 +108,9 @@ function App() {
           </div>
 
           <div className="flex flex-wrap gap-2 justify-center">
-            <Button width="49.5%">Summarise</Button>
+            <Button width="49.5%">Batch Summarise</Button>
             <Button color="white" width="49.5%">
-              Generate Ideas
+              Batch Generate Ideas
             </Button>
           </div>
 
@@ -113,11 +123,7 @@ function App() {
                 disabled
                 width="100%"
               /> */}
-              <TextBox
-                label="Title"
-                variant="translucent"
-                width="100%"
-              />
+              <TextBox label="Title" variant="translucent" width="100%" />
               {/* <InputBox
                 variant="translucent"
                 label="Description"
@@ -145,7 +151,7 @@ function App() {
                 variant="translucent"
                 width="100%"
                 rows={8}
-                value={arr.join('\n')}
+                value={arr.join("\n")}
               />
             </div>
           </div>
