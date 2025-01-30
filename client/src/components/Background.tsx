@@ -13,9 +13,8 @@ const Background = ({
       <div className="green-radial-bg" />
 
       {/* Animated glow effects */}
-      <div className="absolute inset-0">
-        <div className="green-glow" />
-      </div>
+      <div className="green-glow glow-left-top" />
+      <div className="green-glow glow-right-center" />
       {children}
     </div>
   );

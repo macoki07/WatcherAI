@@ -18,13 +18,38 @@
 @layer components {
   .green-radial-bg {
     @apply absolute inset-0;
-    background: radial-gradient(circle at center, rgba(0, 255, 0, 0.1) 0%, rgba(0, 0, 0, 1) 100%);
+    background: radial-gradient(
+      circle at center,
+      rgba(40, 255, 0, 0.15) 0%,  /* Increased opacity and brighter green */
+      rgba(0, 0, 0, 1) 70%        /* Earlier falloff to maintain contrast */
+    );
   }
 
   .green-glow {
-    @apply absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2;
-    width: 40rem;
-    height: 40rem;
-    @apply bg-green-500/30 rounded-full blur-[128px];
+    @apply absolute;
+    width: 45rem;  /* Slightly larger size */
+    height: 45rem;
+    @apply bg-green-400/50 rounded-full blur-[150px]; /* Brighter green (400), higher opacity, larger blur */
+    mix-blend-mode: screen;  /* Better blending with background */
+  }
+
+  .glow-left-top {
+    @apply -top-[15%] -left-[5%];
+    background: radial-gradient(
+      circle,
+      rgba(100, 255, 100, 0.4) 20%,
+      rgba(40, 255, 0, 0.2) 50%,
+      transparent 70%
+    );
+  }
+
+  .glow-right-center {
+    @apply top-[10%] left-[60%];
+    background: radial-gradient(
+      circle,
+      rgba(80, 255, 80, 0.5) 10%,
+      rgba(0, 255, 0, 0.3) 40%,
+      transparent 80%
+    );
   }
 }
