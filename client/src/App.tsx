@@ -7,8 +7,10 @@ import { useState, useEffect } from "react";
 import Header from "./components/Header";
 import axios from "axios";
 import TextBox from "./components/TextBox";
+import { toast, Toaster } from "sonner";
 
 type Metadata = {
+  videoId: string;
   link: string;
   title: string;
   description: string;
@@ -21,13 +23,11 @@ type Metadata = {
 function App() {
   const [url, setUrl] = useState("");
   const [metadata, setMetadata] = useState<Metadata | null>(null);
-  const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const summariseUrl = async () => {
     setLoading(true);
     setMetadata(null);
-    setResult(null);
 
     try {
       // Make a POST request to your Flask server
@@ -41,46 +41,81 @@ function App() {
         }
       );
 
-      const responseData = metadataRes.data;
-      console.log("Raw response data:", responseData);
+      const metadataResData = metadataRes.data;
+      console.log("Raw response data:", metadataResData);
 
-      if (!responseData.success) {
-        throw new Error(responseData.message || "Failed to fetch metadata");
+      if (!metadataResData.success) {
+        throw new Error(metadataResData.message || "Failed to fetch metadata");
       }
 
       // Access the nested metadata object
-      const receivedMetadata = responseData.metadata;
+      const receivedMetadata = metadataResData.metadata;
       console.log("Received Metadata:", receivedMetadata);
 
       // Update state with the received metadata
       setMetadata({
+        videoId: receivedMetadata.VideoId,
         link: receivedMetadata.Link,
         title: receivedMetadata.Title,
         description: receivedMetadata.Description,
         uploader: receivedMetadata.Uploader,
-        uploadDate: receivedMetadata["UploadDate"],
+        uploadDate: receivedMetadata.UploadDate,
         results: receivedMetadata.Results,
         processed: receivedMetadata.Processed,
       });
 
-      // // Immediately call summarize endpoint with the same URL
-      // const summariseRes = await fetch(
-      //   "http://localhost:5000/api/single/summarise",
-      //   {
-      //     method: "POST",
-      //     headers: {
-      //       "Content-Type": "application/json",
-      //     },
-      //     body: JSON.stringify({ url }),
-      //   }
-      // );
-      // if (!summariseRes.ok) {
-      //   throw new Error("Failed to fetch summary");
-      // }
-      // const summaryData = await summariseRes.json();
-      // setResult(summaryData.summary);
+      toast.success("Metadata fetched successfully!");
+
+      // Immediately call summarize endpoint
+      await toast.promise(
+        axios.post(
+          "http://localhost:8080/api/single/summarise",
+          { metadata: receivedMetadata },
+          { headers: { "Content-Type": "application/json" } }
+        ),
+        {
+          loading: "Summarizing video content...",
+          success: (summariseRes) => {
+            const summmariseResData = summariseRes.data;
+
+            if (!summmariseResData.success) {
+              throw new Error(summmariseResData.message);
+            }
+
+            const receivedSummary = summmariseResData.metadata;
+
+            setMetadata({
+              videoId: receivedSummary.VideoId,
+              link: receivedSummary.Link,
+              title: receivedSummary.Title,
+              description: receivedSummary.Description,
+              uploader: receivedSummary.Uploader,
+              uploadDate: receivedSummary.UploadDate,
+              results: receivedSummary.Results,
+              processed: receivedSummary.Processed,
+            });
+
+            return "Summary generated successfully!";
+          },
+          error: (error) => {
+            let errorMessage = "Failed to generate summary";
+            if (axios.isAxiosError(error)) {
+              errorMessage = error.response?.data?.message || error.message;
+            }
+            return errorMessage;
+          },
+        }
+      );
     } catch (error) {
-      console.error(error);
+      let errorMessage = "An unexpected error occurred";
+
+      if (axios.isAxiosError(error)) {
+        errorMessage = error.response?.data?.message || error.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage);
       // You can handle errors (e.g., show a toast or error message)
     } finally {
       setLoading(false);
@@ -123,6 +158,7 @@ function App() {
 
   return (
     <Background>
+      <Toaster position="top-right" richColors expand={true} />
       {/* Header */}
       <Header />
       {/* Main Content */}
@@ -241,7 +277,7 @@ function App() {
                 variant="translucent"
                 width="100%"
                 rows={8}
-                value={arr.join("\n")}
+                value={metadata?.results || ""}
               />
             </div>
           </div>
