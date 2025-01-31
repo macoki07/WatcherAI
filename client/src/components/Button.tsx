@@ -9,6 +9,7 @@ interface Props {
   variant?: "solid" | "outline" | "ghost";
   size?: "sm" | "md" | "lg";
   disabled?: boolean;
+  loading? :boolean;
   onClick?: () => void;
   className?: string;
 }
@@ -22,6 +23,7 @@ const Button = ({
   variant = "solid",
   size = "md",
   disabled = false,
+  loading = false,
   onClick,
   className = "",
 }: Props) => {
@@ -43,25 +45,27 @@ const Button = ({
       solid: "bg-green-500 text-white hover:bg-green-600 focus:ring-green-500",
       outline: "border-2 border-green-500 text-green-500 hover:bg-green-50 focus:ring-green-500",
       ghost: "text-green-500 hover:bg-green-50 focus:ring-green-500",
+      loading: "bg-gray-500 text-black cursor-not-allowed",
     },
     white: {
         solid: "bg-white text-gray-900 hover:bg-gray-100 focus:ring-white",
         outline: "border-2 border-white text-white hover:bg-white hover:text-black focus:ring-white",
         ghost: "text-white hover:bg-white/10 focus:ring-white",
+        loading: "bg-gray-500 text-black cursor-not-allowed",
       },
   };
-
+  const currentVariant = loading ? "loading" : variant;
   return (
     <button
-      style={{ width, height }}
+      style={{ width, height, cursor: disabled || loading ? "not-allowed" : "pointer" }}
       className={`
         ${baseStyles}
         ${shapeStyles[shape]}
         ${sizeStyles[size]}
-        ${variantStyles[color][variant]}
+        ${variantStyles[color][currentVariant]}
         ${className}
       `}
-      disabled={disabled}
+      disabled={disabled || loading}
       onClick={onClick}
     >
       {children}

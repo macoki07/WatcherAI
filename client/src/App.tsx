@@ -26,11 +26,8 @@ function App() {
   const [loading, setLoading] = useState(false);
 
   const summariseUrl = async () => {
-    setLoading(true);
     setMetadata(null);
-
     try {
-      // Make a POST request to your Flask server
       const metadataRes = await axios.post(
         "http://localhost:8080/api/single/get_metadata",
         { url: url },
@@ -40,7 +37,6 @@ function App() {
           },
         }
       );
-
       const metadataResData = metadataRes.data;
       console.log("Raw response data:", metadataResData);
 
@@ -66,7 +62,6 @@ function App() {
 
       toast.success("Metadata fetched successfully!");
 
-      // Immediately call summarize endpoint
       await toast.promise(
         axios.post(
           "http://localhost:8080/api/single/summarise",
@@ -95,6 +90,8 @@ function App() {
               processed: receivedSummary.Processed,
             });
 
+            setLoading(false);
+
             return "Summary generated successfully!";
           },
           error: (error) => {
@@ -104,7 +101,6 @@ function App() {
             }
             return errorMessage;
           },
-          
         }
       );
     } catch (error) {
@@ -118,21 +114,78 @@ function App() {
 
       toast.error(errorMessage);
       // You can handle errors (e.g., show a toast or error message)
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleExampleClick = async () => {
     try {
+      setLoading(true);
       await summariseUrl();
-      // If successful, you can do something here
     } catch (err) {
       console.error("Error during summarise:", err);
-      // Handle the error (e.g., set an error message in state)
+      setLoading(false);
     }
   };
 
+  const downloadFile = async () => {
+    try {
+      if (!metadata) {
+        throw new Error("No file to download");
+      }
+
+      const response = await axios.post(
+        "http://localhost:8080/api/single/download",
+        { metadata },
+        {
+          responseType: "blob", // Important: Set responseType to 'blob' for file downloads
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // Create a URL for the blob
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+
+      // Create a temporary anchor element to trigger the download
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "video_summary.xlsx"); // Name of the downloaded file
+      document.body.appendChild(link);
+      link.click();
+
+      // Clean up
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success("File downloaded successfully!");
+      setLoading(false);
+      
+    } catch (error) {
+      let errorMessage = "An unexpected error occurred";
+
+      if (axios.isAxiosError(error)) {
+        errorMessage = error.response?.data?.message || error.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
+      setLoading(false);
+
+    } 
+  };
+
+  const handleDownloadFileClick = async () => {
+    try {
+      setLoading(true);
+      await downloadFile();
+      // If successful, you can do something here
+    } catch (err) {
+      console.error("Error during download:", err);
+      setLoading(false);
+    }
+  };
   const [file, setFile] = useState<File | null>(null);
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]; // Get the first file selected (optional chaining to handle null/undefined)
@@ -167,8 +220,8 @@ function App() {
                 />
               </div>
               <div className="flex gap-2">
-                <Button onClick={handleExampleClick}>Summarise</Button>
-                <Button color="white">Generate Ideas</Button>
+                <Button onClick={handleExampleClick} loading={loading}>Summarise</Button>
+                <Button color="white" loading={loading}>Generate Ideas</Button>
               </div>
             </div>
           </div>
@@ -208,6 +261,7 @@ function App() {
               variant="outline"
               color="white"
               onClick={handleFileChangeClick}
+              loading={loading}
             >
               Browse
             </Button>
@@ -218,8 +272,8 @@ function App() {
           </div>
 
           <div className="flex flex-wrap gap-2 justify-center">
-            <Button width="49.5%">Batch Summarise</Button>
-            <Button color="white" width="49.5%">
+            <Button width="49.5%" loading={loading}>Batch Summarise</Button>
+            <Button color="white" width="49.5%" loading={loading}>
               Batch Generate Ideas
             </Button>
           </div>
@@ -271,7 +325,7 @@ function App() {
               />
             </div>
           </div>
-          <Button width="100%">
+          <Button width="100%" onClick={handleDownloadFileClick} loading={loading}>
             <FiDownload className="mr-2" /> Download
           </Button>
         </div>

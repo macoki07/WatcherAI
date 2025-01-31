@@ -1,8 +1,10 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 from datetime import datetime
 import re
 import utils
-import requests
+import pandas as pd
+import io
+
 api = Blueprint("api", __name__)
 
 
@@ -87,3 +89,40 @@ def summarise_route():
     
 
     return jsonify({"success": True, "metadata": metadata}), 200
+
+@api.route("/single/download", methods=["POST"])
+def download_route():
+    data = request.get_json()
+    print(data)
+    if data["metadata"] is None:
+        return jsonify({"success": False, "message": "No file to download"}), 400
+
+    metadata = data["metadata"]
+
+    metadata.pop("videoId", None)  # Remove 'videoId' if it exists
+    metadata.pop("processed") # Remove 'processed' if it exists
+
+    # Convert metadata to a pandas DataFrame
+    df = pd.DataFrame(metadata, index=[0])
+
+
+    df.columns = [col.capitalize() for col in df.columns]
+    df.insert(0, "S/N", 1)  # Insert S/N column at the beginning with value 1
+    df.rename(columns={"Uploaddate": "Upload Date"}, inplace=True)
+    print(df.columns)
+
+    file_stream = io.BytesIO()
+
+    with pd.ExcelWriter(file_stream, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Video Summary")
+
+    # Seek to the beginning of the stream
+    file_stream.seek(0)
+
+    # Return the file as a downloadable response
+    return send_file(
+        file_stream,
+        as_attachment=True,
+        download_name="video_summary.xlsx",  # Name of the downloaded file
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
