@@ -113,7 +113,6 @@ function App() {
       }
 
       toast.error(errorMessage);
-      // You can handle errors (e.g., show a toast or error message)
     }
   };
 
