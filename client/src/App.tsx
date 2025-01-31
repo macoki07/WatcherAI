@@ -104,6 +104,7 @@ function App() {
             }
             return errorMessage;
           },
+          
         }
       );
     } catch (error) {
@@ -122,13 +123,6 @@ function App() {
     }
   };
 
-  const [arr, setArr] = useState([]);
-
-  const APIExample = async () => {
-    const res = await axios.get("http://localhost:8080/api/users");
-    setArr(res.data.users);
-  };
-
   const handleExampleClick = async () => {
     try {
       await summariseUrl();
@@ -138,10 +132,6 @@ function App() {
       // Handle the error (e.g., set an error message in state)
     }
   };
-
-  // useEffect(() => {
-  //   APIExample();
-  // }, []);
 
   const [file, setFile] = useState<File | null>(null);
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
