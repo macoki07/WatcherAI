@@ -35,6 +35,7 @@ const InputBox = ({
   required = false,
   name,
 }: Props) => {
+  console.log("input box renders")
   const baseStyles =
     "w-full transition-all duration-200 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60";
 

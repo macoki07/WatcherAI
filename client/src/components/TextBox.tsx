@@ -35,6 +35,7 @@ const TextBox = ({
   rows = 1,
   readonly = true
 }: Props) => {
+  console.log("text box renders")
   const baseStyles =
     "w-full transition-all duration-200 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60";
 

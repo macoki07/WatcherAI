@@ -7,6 +7,7 @@ interface Props {
 const Background = ({
   children
 }: Props) => {
+  console.log("background renders")
   return (
     <div className="min-h-screen relative flex items-center justify-center p-4 overflow-hidden">
       {/* Radial gradient background */}

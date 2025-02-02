@@ -3,22 +3,12 @@ import Background from "./components/Background";
 import Button from "./components/Button";
 import InputBox from "./components/InputBox";
 import { FiDownload, FiUpload } from "react-icons/fi";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Header from "./components/Header";
 import axios from "axios";
 import TextBox from "./components/TextBox";
 import { toast, Toaster } from "sonner";
-
-type Metadata = {
-  videoId: string;
-  link: string;
-  title: string;
-  description: string;
-  uploader: string;
-  uploadDate: string;
-  results: string;
-  processed: boolean;
-};
+import { Metadata } from "./types";
 
 function App() {
   const [url, setUrl] = useState("");
@@ -70,8 +60,8 @@ function App() {
         ),
         {
           loading: "Summarizing video content...",
-          success: (summariseRes) => {
-            const summmariseResData = summariseRes.data;
+          success: (generateIdeaRes) => {
+            const summmariseResData = generateIdeaRes.data;
 
             if (!summmariseResData.success) {
               throw new Error(summmariseResData.message);
@@ -116,12 +106,113 @@ function App() {
     }
   };
 
-  const handleExampleClick = async () => {
+  const handleSummariseUrlClick = async () => {
     try {
       setLoading(true);
       await summariseUrl();
     } catch (err) {
       console.error("Error during summarise:", err);
+      setLoading(false);
+    }
+  };
+
+  const generateIdeasUrl = async () => {
+    setMetadata(null);
+    try {
+      const metadataRes = await axios.post(
+        "http://localhost:8080/api/single/get_metadata",
+        { url: url },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      const metadataResData = metadataRes.data;
+      console.log("Raw response data:", metadataResData);
+
+      if (!metadataResData.success) {
+        throw new Error(metadataResData.message || "Failed to fetch metadata");
+      }
+
+      // Access the nested metadata object
+      const receivedMetadata = metadataResData.metadata;
+      console.log("Received Metadata:", receivedMetadata);
+
+      // Update state with the received metadata
+      setMetadata({
+        videoId: receivedMetadata.VideoId,
+        link: receivedMetadata.Link,
+        title: receivedMetadata.Title,
+        description: receivedMetadata.Description,
+        uploader: receivedMetadata.Uploader,
+        uploadDate: receivedMetadata.UploadDate,
+        results: receivedMetadata.Results,
+        processed: receivedMetadata.Processed,
+      });
+
+      toast.success("Metadata fetched successfully!");
+
+      await toast.promise(
+        axios.post(
+          "http://localhost:8080/api/single/generate_ideas",
+          { metadata: receivedMetadata },
+          { headers: { "Content-Type": "application/json" } }
+        ),
+        {
+          loading: "Generating Video Ideas...",
+          success: (generateIdeaRes) => {
+            const generateIdeaResData = generateIdeaRes.data;
+
+            if (!generateIdeaResData.success) {
+              throw new Error(generateIdeaResData.message);
+            }
+
+            const receivedIdeas = generateIdeaResData.metadata;
+
+            setMetadata({
+              videoId: receivedIdeas.VideoId,
+              link: receivedIdeas.Link,
+              title: receivedIdeas.Title,
+              description: receivedIdeas.Description,
+              uploader: receivedIdeas.Uploader,
+              uploadDate: receivedIdeas.UploadDate,
+              results: receivedIdeas.Results,
+              processed: receivedIdeas.Processed,
+            });
+
+            setLoading(false);
+
+            return "Ideas generated successfully!";
+          },
+          error: (error) => {
+            let errorMessage = "Failed to generate ideas";
+            if (axios.isAxiosError(error)) {
+              errorMessage = error.response?.data?.message || error.message;
+            }
+            return errorMessage;
+          },
+        }
+      );
+    } catch (error) {
+      let errorMessage = "An unexpected error occurred";
+
+      if (axios.isAxiosError(error)) {
+        errorMessage = error.response?.data?.message || error.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleGenerateIdeasUrlClick = async () => {
+    try {
+      setLoading(true);
+      await generateIdeasUrl();
+    } catch (err) {
+      console.error("Error during generating ideas:", err);
       setLoading(false);
     }
   };
@@ -149,7 +240,7 @@ function App() {
       // Create a temporary anchor element to trigger the download
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", "video_summary.xlsx"); // Name of the downloaded file
+      link.setAttribute("download", "Output.xlsx"); // Name of the downloaded file
       document.body.appendChild(link);
       link.click();
 
@@ -219,8 +310,8 @@ function App() {
                 />
               </div>
               <div className="flex gap-2">
-                <Button onClick={handleExampleClick} loading={loading}>Summarise</Button>
-                <Button color="white" loading={loading}>Generate Ideas</Button>
+                <Button onClick={handleSummariseUrlClick} loading={loading}>Summarise</Button>
+                <Button onClick={handleGenerateIdeasUrlClick} color="white" loading={loading}>Generate Ideas</Button>
               </div>
             </div>
           </div>
@@ -280,25 +371,12 @@ function App() {
           {/* Results Section */}
           <div className="flex gap-4">
             <div className="flex-1 space-y-4">
-              {/* <InputBox
-                variant="translucent"
-                label="Title"
-                disabled
-                width="100%"
-              /> */}
               <TextBox
                 label="Title"
                 variant="translucent"
                 width="100%"
                 value={metadata?.title || ""}
               />
-              {/* <InputBox
-                variant="translucent"
-                label="Description"
-                disabled
-                height="220px"
-                width="100%"
-              /> */}
               <TextBox
                 label="Description"
                 variant="translucent"
@@ -308,13 +386,6 @@ function App() {
               />
             </div>
             <div className="flex-1">
-              {/* <InputBox
-                variant="translucent"
-                label="Results"
-                disabled
-                height="300px"
-                width="100%"
-              /> */}
               <TextBox
                 label="Results"
                 variant="translucent"

@@ -8,9 +8,37 @@ import io
 api = Blueprint("api", __name__)
 
 
-@api.route("/users", methods=["GET"])
-def users():
-    return jsonify({"users": ["arpan", "jessie", "jay"]})
+def validate_metadata(func):
+    def wrapper(*args, **kwargs):
+        data = request.get_json()
+        
+        if "metadata" not in data:
+            return jsonify({"success": False, "message": "Missing metadata in request"}), 400
+            
+        metadata = data.get("metadata")
+        
+        if "VideoId" not in metadata:
+            return jsonify({"success": False, "message": "Missing VideoId in metadata"}), 400
+            
+        return func(metadata, *args, **kwargs)
+    return wrapper
+
+def handle_processing(metadata, processor):
+    video_id = metadata["VideoId"]
+    full_transcript = utils.get_transcript(video_id=video_id)
+    chunk_size = utils.set_chunk_size(size=7000)
+    
+    chunks, total_chunk_num = utils.split_transcript(full_transcript, chunk_size)
+    
+    if total_chunk_num > 1:
+        for i, chunk in enumerate(chunks, start=1):
+            result = processor['chunk'](chunk, i, total_chunk_num)
+            metadata["Results"] = (metadata.get("Results") or "") + result
+    else:
+        metadata["Results"] = processor['func'](full_transcript)
+
+    metadata["Processed"] = True
+    return metadata
 
 
 @api.route("/single/get_metadata", methods=["POST"])
@@ -57,38 +85,26 @@ def get_metadata_route():
 
     return jsonify({"success": True, "metadata": res_dict}), 200
 
-@api.route("/single/summarise", methods=["POST"])
-def summarise_route():
-    data = request.get_json()
-    
-    if "metadata" not in data:
-        return jsonify({"success": False, "message": "Missing metadata in request"}), 400
-     
-    metadata = data.get("metadata")
-    
-    if "VideoId" not in metadata:
-        return jsonify({"success": False, "message": "Missing VideoId in metadata"}), 400
-        
-    video_id = metadata["VideoId"]
-    
-    full_transcript = utils.get_transcript(video_id=video_id)
-    chunk_size = utils.set_chunk_size(size=7000)
-    
-    # Check if the transcript is too long to process in one go
-    chunks, total_chunk_num = utils.split_transcript(full_transcript, chunk_size)
-    if total_chunk_num > 1:
-        for i, chunk in enumerate(chunks, start=1):
-            summary = utils.provide_summary_chunk(chunk, i, total_chunk_num)
-            metadata["Results"] = (metadata["Results"] or "") + summary
 
-    else:
-        final_summary = utils.provide_summary(full_transcript)
-        metadata["Results"] = final_summary
-
-    metadata["Processed"] = True
+@api.route("/single/<action>", methods=["POST"])
+@validate_metadata
+def handle_single_action(metadata, action):
+    processors = {
+        "summarise": {
+            'chunk': utils.provide_summary_chunk,
+            'func': utils.provide_summary
+        },
+        "generate_ideas": {
+            'chunk': utils.generate_idea_chunk,
+            'func': utils.generate_idea
+        }
+    }
     
+    if action not in processors:
+        return jsonify({"success": False, "message": "Invalid action"}), 400
 
-    return jsonify({"success": True, "metadata": metadata}), 200
+    processed_metadata = handle_processing(metadata, processors[action])
+    return jsonify({"success": True, "metadata": processed_metadata}), 200
 
 @api.route("/single/download", methods=["POST"])
 def download_route():
@@ -114,7 +130,7 @@ def download_route():
     file_stream = io.BytesIO()
 
     with pd.ExcelWriter(file_stream, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Video Summary")
+        df.to_excel(writer, index=False, sheet_name="Results")
 
     # Seek to the beginning of the stream
     file_stream.seek(0)
@@ -123,6 +139,6 @@ def download_route():
     return send_file(
         file_stream,
         as_attachment=True,
-        download_name="video_summary.xlsx",  # Name of the downloaded file
+        download_name="output.xlsx",  # Name of the downloaded file
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )

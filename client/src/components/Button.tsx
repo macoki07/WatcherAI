@@ -55,6 +55,7 @@ const Button = ({
       },
   };
   const currentVariant = loading ? "loading" : variant;
+  console.log("button renders")
   return (
     <button
       style={{ width, height, cursor: disabled || loading ? "not-allowed" : "pointer" }}
