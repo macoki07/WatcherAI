@@ -13,7 +13,7 @@ const Card = ({
   height = "500px", // Set a default height
   className = "",
 }: Props) => {
-  console.log("card renders")
+  // console.log("card renders")
   return (
     <div
       className={`relative p-8 rounded-2xl overflow-hidden backdrop-blur-md ${className}`}

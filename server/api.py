@@ -11,16 +11,22 @@ api = Blueprint("api", __name__)
 def validate_metadata(func):
     def wrapper(*args, **kwargs):
         data = request.get_json()
-        
+        print(data)
         if "metadata" not in data:
             return jsonify({"success": False, "message": "Missing metadata in request"}), 400
-            
-        metadata = data.get("metadata")
-        
-        if "VideoId" not in metadata:
-            return jsonify({"success": False, "message": "Missing VideoId in metadata"}), 400
-            
-        return func(metadata, *args, **kwargs)
+
+        metadata_list = data.get("metadata")
+
+        # Ensure metadata is a list
+        if not isinstance(metadata_list, list):
+            return jsonify({"success": False, "message": "Metadata must be a list"}), 400
+
+        # Validate each item in the list
+        for metadata in metadata_list:
+            if "VideoId" not in metadata:
+                return jsonify({"success": False, "message": "Missing VideoId in metadata item"}), 400
+
+        return func(metadata_list, *args, **kwargs)
     return wrapper
 
 def handle_processing(metadata, processor):
@@ -64,7 +70,7 @@ def get_metadata_route():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
-    res_dict = {
+    res_dict = [{
         "VideoId": video_id,
         "Link": youtube_link,
         "Title": info_dict.get("title", ""),
@@ -73,22 +79,22 @@ def get_metadata_route():
         "UploadDate": None,
         "Results": None,
         "Processed": False,
-    }
+    }]
 
     upload_date = info_dict.get("upload_date")
     if upload_date:
         try:
             date_obj = datetime.strptime(upload_date, "%Y%m%d")
-            res_dict["UploadDate"] = date_obj.strftime("%d/%m/%y")
+            res_dict[0]["UploadDate"] = date_obj.strftime("%d/%m/%y")
         except ValueError:
-            res_dict["UploadDate"] = upload_date  # Fallback to raw value
+            res_dict[0]["UploadDate"] = upload_date  # Fallback to raw value
 
     return jsonify({"success": True, "metadata": res_dict}), 200
 
 
 @api.route("/single/<action>", methods=["POST"])
 @validate_metadata
-def handle_single_action(metadata, action):
+def handle_single_action(metadata_list, action):
     processors = {
         "summarise": {
             'chunk': utils.provide_summary_chunk,
@@ -100,45 +106,37 @@ def handle_single_action(metadata, action):
         }
     }
     
-    if action not in processors:
-        return jsonify({"success": False, "message": "Invalid action"}), 400
+    processed_metadata_list = []
+    for metadata in metadata_list:
+        processed_metadata = handle_processing(metadata, processors[action])
+        processed_metadata_list.append(processed_metadata)
 
-    processed_metadata = handle_processing(metadata, processors[action])
-    return jsonify({"success": True, "metadata": processed_metadata}), 200
+    return jsonify({"success": True, "metadata": processed_metadata_list}), 200
 
 @api.route("/single/download", methods=["POST"])
 def download_route():
     data = request.get_json()
-    print(data)
-    if data["metadata"] is None:
-        return jsonify({"success": False, "message": "No file to download"}), 400
+    if not data.get("metadata") or not isinstance(data["metadata"], list):
+        return jsonify({"success": False, "message": "Invalid metadata format"}), 400
 
-    metadata = data["metadata"]
+    metadata_list = data["metadata"]
 
-    metadata.pop("videoId", None)  # Remove 'videoId' if it exists
-    metadata.pop("processed") # Remove 'processed' if it exists
+    rows = []
+    for metadata in metadata_list:
+        # Start with S/N as the first key
+        row = {"S/N": len(rows) + 1}
+        # Then add the other keys (excluding "videoId" and "processed")
+        row.update({k.capitalize(): v for k, v in metadata.items() if k not in ["videoId", "processed"]})
+        rows.append(row)
 
-    # Convert metadata to a pandas DataFrame
-    df = pd.DataFrame(metadata, index=[0])
 
-
-    df.columns = [col.capitalize() for col in df.columns]
-    df.insert(0, "S/N", 1)  # Insert S/N column at the beginning with value 1
+    df = pd.DataFrame(rows)
     df.rename(columns={"Uploaddate": "Upload Date"}, inplace=True)
-    print(df.columns)
 
+    # Generate Excel file
     file_stream = io.BytesIO()
-
     with pd.ExcelWriter(file_stream, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="Results")
-
-    # Seek to the beginning of the stream
     file_stream.seek(0)
 
-    # Return the file as a downloadable response
-    return send_file(
-        file_stream,
-        as_attachment=True,
-        download_name="output.xlsx",  # Name of the downloaded file
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    return send_file(file_stream, as_attachment=True, download_name="output.xlsx")
