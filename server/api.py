@@ -1,3 +1,4 @@
+from functools import wraps
 from flask import Blueprint, jsonify, request, send_file
 from datetime import datetime
 import re
@@ -9,6 +10,7 @@ api = Blueprint("api", __name__)
 
 
 def validate_metadata(func):
+    @wraps(func)
     def wrapper(*args, **kwargs):
         data = request.get_json()
         print(data)
@@ -225,4 +227,80 @@ def get_metadata_batch_route():
     print(res_array)
     return jsonify({"success": True, "metadata": res_array}), 200
 
-    
+def validate_batch_metadata(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        data = request.get_json()
+
+        metadata_list = data.get("metadata")
+
+        # Ensure metadata is a list
+        if not isinstance(metadata_list, list):
+            return (
+                jsonify({"success": False, "message": "Metadata must be a list"}),
+                400,
+            )
+
+        # Validate each item in the list
+        for metadata in metadata_list:
+            if "VideoId" not in metadata:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": "Missing VideoId in metadata item",
+                        }
+                    ),
+                    400,
+                )
+
+        return func(metadata_list, *args, **kwargs)
+
+    return wrapper
+
+def handle_batch_processing(metadata_list, processor):
+    processed_metadata_list = []
+
+    for metadata in metadata_list:
+        video_id = metadata["VideoId"]
+        full_transcript = utils.get_transcript(video_id=video_id)
+        chunk_size = utils.set_chunk_size(size=7000)
+
+        chunks, total_chunk_num = utils.split_transcript(full_transcript, chunk_size)
+
+        if total_chunk_num > 1:
+            for i, chunk in enumerate(chunks, start=1):
+                result = processor["chunk"](chunk, i, total_chunk_num)
+                metadata["Results"] = (metadata.get("Results") or "") + result
+        else:
+            metadata["Results"] = processor["func"](full_transcript)
+
+        metadata["Processed"] = True
+        processed_metadata_list.append(metadata)
+
+    return processed_metadata_list
+
+
+@api.route("/batch/<action>", methods=["POST"])
+@validate_batch_metadata
+def handle_batch_action(metadata_list, action):
+    processors = {
+        "summarise": {
+            "chunk": utils.provide_summary_chunk,
+            "func": utils.provide_summary,
+        },
+        "generate_ideas": {
+            "chunk": utils.generate_idea_chunk,
+            "func": utils.generate_idea,
+        },
+    }
+
+    if action not in processors:
+        return jsonify({"success": False, "message": "Invalid action"}), 400
+
+    processed_metadata_list = []
+
+    processed_metadata = handle_batch_processing(metadata_list, processors[action])
+    processed_metadata_list.append(processed_metadata)
+
+    return jsonify({"success": True, "metadata": processed_metadata_list}), 200
