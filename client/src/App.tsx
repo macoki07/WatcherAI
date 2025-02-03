@@ -3,7 +3,7 @@ import Background from "./components/Background";
 import Button from "./components/Button";
 import InputBox from "./components/InputBox";
 import { FiDownload, FiUpload } from "react-icons/fi";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Header from "./components/Header";
 import axios from "axios";
 import TextBox from "./components/TextBox";
@@ -72,7 +72,7 @@ function App() {
             }
 
             const receivedSummary = summmariseResData.metadata;
-            console.log(receivedSummary)
+            console.log(receivedSummary);
             setMetadata([
               {
                 videoId: receivedSummary[0].VideoId,
@@ -88,7 +88,6 @@ function App() {
 
             setLoading(false);
             console.log(metadata);
-
 
             return "Summary generated successfully!";
           },
@@ -299,6 +298,106 @@ function App() {
     fileInput?.click(); // Trigger the file input click programmatically
   };
 
+  const batchSummarise = async () => {
+    setMetadata(null);
+
+    if (!file) {
+      toast.error("Please provide a file first!");
+      setLoading(false);
+      return;
+    }
+
+    // Create FormData and append the file from state
+    const formData = new FormData();
+    formData.append("file", file); // Field name "file" (match your server's expectations)
+
+    try {
+      const metadataRes = await axios.post(
+        "http://localhost:8080/api/batch/get_metadata",
+        formData,
+        {
+          headers: {
+            // Axios auto sets content-type
+          },
+        }
+      );
+
+      const metadataResData = metadataRes.data;
+      console.log("Raw response data:", metadataResData);
+
+      if (!metadataResData.success) {
+        throw new Error(metadataResData.message || "Failed to fetch metadata");
+      }
+
+      // Access the nested metadata object
+      const receivedMetadata = metadataResData.metadata;
+      console.log("Received Metadata:", receivedMetadata);
+
+      // Update state with the received metadata
+      setMetadata(receivedMetadata);
+
+      toast.success("Metadata fetched successfully!");
+      setLoading(false);
+
+      // await toast.promise(
+      //   axios.post(
+      //     "http://localhost:8080/api/batch/summarise",
+      //     { metadata: receivedMetadata },
+      //     { headers: { "Content-Type": "application/json" } }
+      //   ),
+      //   {
+      //     loading: "Summarizing video content...",
+      //     success: (summariseRes) => {
+      //       const summmariseResData = summariseRes.data;
+      //       console.log(summariseRes.data);
+      //       if (!summmariseResData.success) {
+      //         throw new Error(summmariseResData.message);
+      //       }
+
+      //       const receivedSummary = summmariseResData.metadata;
+      //       console.log(receivedSummary);
+      //       setMetadata(receivedSummary);
+
+      //       setLoading(false);
+      //       console.log(metadata);
+
+      //       return "Summary generated successfully!";
+      //     },
+      //     error: (error) => {
+      //       let errorMessage = "Failed to generate summary";
+      //       if (axios.isAxiosError(error)) {
+      //         errorMessage = error.response?.data?.message || error.message;
+      //       }
+      //       return errorMessage;
+      //     },
+      //   }
+      // );
+    } catch (error) {
+      let errorMessage = "An unexpected error occurred";
+
+      if (axios.isAxiosError(error)) {
+        errorMessage = error.response?.data?.message || error.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      setLoading(false);
+      toast.error(errorMessage);
+    }
+  };
+  const handleBatchSummariseClick = async () => {
+    try {
+      setLoading(true);
+      await batchSummarise();
+      // If successful, you can do something here
+    } catch (err) {
+      console.error("Error during download:", err);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    console.log("Updated Metadata:", metadata);
+  }, [metadata]);
   return (
     <Background>
       <Toaster position="top-right" richColors expand={true} />
@@ -380,7 +479,7 @@ function App() {
           </div>
 
           <div className="flex flex-wrap gap-2 justify-center">
-            <Button width="49.5%" loading={loading}>
+            <Button width="49.5%" onClick={handleBatchSummariseClick} loading={loading}>
               Batch Summarise
             </Button>
             <Button color="white" width="49.5%" loading={loading}>

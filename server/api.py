@@ -13,35 +13,51 @@ def validate_metadata(func):
         data = request.get_json()
         print(data)
         if "metadata" not in data:
-            return jsonify({"success": False, "message": "Missing metadata in request"}), 400
+            return (
+                jsonify({"success": False, "message": "Missing metadata in request"}),
+                400,
+            )
 
         metadata_list = data.get("metadata")
 
         # Ensure metadata is a list
         if not isinstance(metadata_list, list):
-            return jsonify({"success": False, "message": "Metadata must be a list"}), 400
+            return (
+                jsonify({"success": False, "message": "Metadata must be a list"}),
+                400,
+            )
 
         # Validate each item in the list
         for metadata in metadata_list:
             if "VideoId" not in metadata:
-                return jsonify({"success": False, "message": "Missing VideoId in metadata item"}), 400
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": "Missing VideoId in metadata item",
+                        }
+                    ),
+                    400,
+                )
 
         return func(metadata_list, *args, **kwargs)
+
     return wrapper
+
 
 def handle_processing(metadata, processor):
     video_id = metadata["VideoId"]
     full_transcript = utils.get_transcript(video_id=video_id)
     chunk_size = utils.set_chunk_size(size=7000)
-    
+
     chunks, total_chunk_num = utils.split_transcript(full_transcript, chunk_size)
-    
+
     if total_chunk_num > 1:
         for i, chunk in enumerate(chunks, start=1):
-            result = processor['chunk'](chunk, i, total_chunk_num)
+            result = processor["chunk"](chunk, i, total_chunk_num)
             metadata["Results"] = (metadata.get("Results") or "") + result
     else:
-        metadata["Results"] = processor['func'](full_transcript)
+        metadata["Results"] = processor["func"](full_transcript)
 
     metadata["Processed"] = True
     return metadata
@@ -56,7 +72,9 @@ def get_metadata_route():
 
     url = data["url"]
 
-    youtube_link_pattern = r"(http(s)?://(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]+))"
+    youtube_link_pattern = (
+        r"(http(s)?://(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]+))"
+    )
     link = re.search(youtube_link_pattern, url)
 
     if not link:
@@ -70,16 +88,18 @@ def get_metadata_route():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
-    res_dict = [{
-        "VideoId": video_id,
-        "Link": youtube_link,
-        "Title": info_dict.get("title", ""),
-        "Description": info_dict.get("description", ""),
-        "Uploader": info_dict.get("uploader", ""),
-        "UploadDate": None,
-        "Results": None,
-        "Processed": False,
-    }]
+    res_dict = [
+        {
+            "VideoId": video_id,
+            "Link": youtube_link,
+            "Title": info_dict.get("title", ""),
+            "Description": info_dict.get("description", ""),
+            "Uploader": info_dict.get("uploader", ""),
+            "UploadDate": None,
+            "Results": None,
+            "Processed": False,
+        }
+    ]
 
     upload_date = info_dict.get("upload_date")
     if upload_date:
@@ -97,21 +117,22 @@ def get_metadata_route():
 def handle_single_action(metadata_list, action):
     processors = {
         "summarise": {
-            'chunk': utils.provide_summary_chunk,
-            'func': utils.provide_summary
+            "chunk": utils.provide_summary_chunk,
+            "func": utils.provide_summary,
         },
         "generate_ideas": {
-            'chunk': utils.generate_idea_chunk,
-            'func': utils.generate_idea
-        }
+            "chunk": utils.generate_idea_chunk,
+            "func": utils.generate_idea,
+        },
     }
-    
+
     processed_metadata_list = []
     for metadata in metadata_list:
         processed_metadata = handle_processing(metadata, processors[action])
         processed_metadata_list.append(processed_metadata)
 
     return jsonify({"success": True, "metadata": processed_metadata_list}), 200
+
 
 @api.route("/single/download", methods=["POST"])
 def download_route():
@@ -126,9 +147,14 @@ def download_route():
         # Start with S/N as the first key
         row = {"S/N": len(rows) + 1}
         # Then add the other keys (excluding "videoId" and "processed")
-        row.update({k.capitalize(): v for k, v in metadata.items() if k not in ["videoId", "processed"]})
+        row.update(
+            {
+                k.capitalize(): v
+                for k, v in metadata.items()
+                if k not in ["videoId", "processed"]
+            }
+        )
         rows.append(row)
-
 
     df = pd.DataFrame(rows)
     df.rename(columns={"Uploaddate": "Upload Date"}, inplace=True)
@@ -140,3 +166,63 @@ def download_route():
     file_stream.seek(0)
 
     return send_file(file_stream, as_attachment=True, download_name="output.xlsx")
+
+
+@api.route("/batch/get_metadata", methods=["POST"])
+def get_metadata_batch_route():
+    # Check if the request contains a file
+    if "file" not in request.files:
+        return jsonify({"success": False, "message": "No file uploaded"}), 400
+
+    file = request.files["file"]
+    filename = file.filename
+    # Check if the file is empty
+    if filename == "":
+        return jsonify({"success": False, "message": "Empty filename"}), 400
+
+    if filename.endswith(".csv"):
+        df = pd.read_csv(file)
+    elif filename.endswith(".xlsx"):
+        df = pd.read_excel(file)
+
+    # Remove "Unnamed" columns
+    df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
+
+    res_array = []
+    
+    for index, link in enumerate(df["Link"]):
+        res_dict = {
+            "VideoId": "",
+            "Link": "",
+            "Title": "",
+            "Description": "",
+            "Uploader": "",
+            "UploadDate": None,
+            "Results": None,
+            "Processed": False,
+        }
+        print("YouTube Link " + str(index + 1) + " Found:", link)
+        video_id = utils.get_video_id(link)
+        youtube_link = f"https://www.youtube.com/watch?v={video_id}"
+
+        # Get the metadata of the YouTube video
+        info_dict = utils.get_metadata(youtube_link)
+
+        # Fill in the dict
+        res_dict["VideoId"] = str(video_id)
+        res_dict["Link"] = str(youtube_link)
+        res_dict["Title"] = str(info_dict.get("title"))
+        res_dict["Description"] = str(info_dict.get("description"))
+        res_dict["Uploader"] = str(info_dict.get("uploader"))
+
+        upload_date = info_dict.get("upload_date")
+        formatted_date = pd.to_datetime(upload_date, errors="coerce").strftime(
+           "%d/%m/%y"
+        )
+        res_dict["UploadDate"] = formatted_date
+        res_array.append(res_dict)
+
+    print(res_array)
+    return jsonify({"success": True, "metadata": res_array}), 200
+
+    
