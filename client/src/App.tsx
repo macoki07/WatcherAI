@@ -19,6 +19,7 @@ function App() {
   const [nav, setNav] = useState(false);
   const summariseUrl = async () => {
     setMetadata(null);
+    setNav(false);
     try {
       const metadataRes = await axios.post(
         "http://localhost:8080/api/single/get_metadata",
@@ -43,14 +44,14 @@ function App() {
       // Update state with the received metadata
       setMetadata([
         {
-          videoId: receivedMetadata.VideoId,
-          link: receivedMetadata.Link,
-          title: receivedMetadata.Title,
-          description: receivedMetadata.Description,
-          uploader: receivedMetadata.Uploader,
-          uploadDate: receivedMetadata.UploadDate,
-          results: receivedMetadata.Results,
-          processed: receivedMetadata.Processed,
+          VideoId: receivedMetadata.VideoId,
+          Link: receivedMetadata.Link,
+          Title: receivedMetadata.Title,
+          Description: receivedMetadata.Description,
+          Uploader: receivedMetadata.Uploader,
+          UploadDate: receivedMetadata.UploadDate,
+          Results: receivedMetadata.Results,
+          Processed: receivedMetadata.Processed,
         },
       ]);
 
@@ -75,14 +76,14 @@ function App() {
             console.log(receivedSummary);
             setMetadata([
               {
-                videoId: receivedSummary[0].VideoId,
-                link: receivedSummary[0].Link,
-                title: receivedSummary[0].Title,
-                description: receivedSummary[0].Description,
-                uploader: receivedSummary[0].Uploader,
-                uploadDate: receivedSummary[0].UploadDate,
-                results: receivedSummary[0].Results,
-                processed: receivedSummary[0].Processed,
+                VideoId: receivedSummary[0].VideoId,
+                Link: receivedSummary[0].Link,
+                Title: receivedSummary[0].Title,
+                Description: receivedSummary[0].Description,
+                Uploader: receivedSummary[0].Uploader,
+                UploadDate: receivedSummary[0].UploadDate,
+                Results: receivedSummary[0].Results,
+                Processed: receivedSummary[0].Processed,
               },
             ]);
 
@@ -125,6 +126,7 @@ function App() {
 
   const generateIdeasUrl = async () => {
     setMetadata(null);
+    setNav(false);
     try {
       const metadataRes = await axios.post(
         "http://localhost:8080/api/single/get_metadata",
@@ -149,14 +151,14 @@ function App() {
       // Update state with the received metadata
       setMetadata([
         {
-          videoId: receivedMetadata.VideoId,
-          link: receivedMetadata.Link,
-          title: receivedMetadata.Title,
-          description: receivedMetadata.Description,
-          uploader: receivedMetadata.Uploader,
-          uploadDate: receivedMetadata.UploadDate,
-          results: receivedMetadata.Results,
-          processed: receivedMetadata.Processed,
+          VideoId: receivedMetadata.VideoId,
+          Link: receivedMetadata.Link,
+          Title: receivedMetadata.Title,
+          Description: receivedMetadata.Description,
+          Uploader: receivedMetadata.Uploader,
+          UploadDate: receivedMetadata.UploadDate,
+          Results: receivedMetadata.Results,
+          Processed: receivedMetadata.Processed,
         },
       ]);
 
@@ -181,14 +183,14 @@ function App() {
 
             setMetadata([
               {
-                videoId: receivedIdeas[0].VideoId,
-                link: receivedIdeas[0].Link,
-                title: receivedIdeas[0].Title,
-                description: receivedIdeas[0].Description,
-                uploader: receivedIdeas[0].Uploader,
-                uploadDate: receivedIdeas[0].UploadDate,
-                results: receivedIdeas[0].Results,
-                processed: receivedIdeas[0].Processed,
+                VideoId: receivedIdeas[0].VideoId,
+                Link: receivedIdeas[0].Link,
+                Title: receivedIdeas[0].Title,
+                Description: receivedIdeas[0].Description,
+                Uploader: receivedIdeas[0].Uploader,
+                UploadDate: receivedIdeas[0].UploadDate,
+                Results: receivedIdeas[0].Results,
+                Processed: receivedIdeas[0].Processed,
               },
             ]);
 
@@ -300,7 +302,7 @@ function App() {
 
   const batchSummarise = async () => {
     setMetadata(null);
-
+    setNav(true);
     if (!file) {
       toast.error("Please provide a file first!");
       setLoading(false);
@@ -337,41 +339,39 @@ function App() {
       setMetadata(receivedMetadata);
 
       toast.success("Metadata fetched successfully!");
-      setLoading(false);
 
-      // await toast.promise(
-      //   axios.post(
-      //     "http://localhost:8080/api/batch/summarise",
-      //     { metadata: receivedMetadata },
-      //     { headers: { "Content-Type": "application/json" } }
-      //   ),
-      //   {
-      //     loading: "Summarizing video content...",
-      //     success: (summariseRes) => {
-      //       const summmariseResData = summariseRes.data;
-      //       console.log(summariseRes.data);
-      //       if (!summmariseResData.success) {
-      //         throw new Error(summmariseResData.message);
-      //       }
+      await toast.promise(
+        axios.post(
+          "http://localhost:8080/api/batch/summarise",
+          { metadata: receivedMetadata },
+          { headers: { "Content-Type": "application/json" } }
+        ),
+        {
+          loading: "Summarizing video content...",
+          success: (summariseRes) => {
+            const summmariseResData = summariseRes.data;
+            console.log(summariseRes.data);
+            if (!summmariseResData.success) {
+              throw new Error(summmariseResData.message);
+            }
 
-      //       const receivedSummary = summmariseResData.metadata;
-      //       console.log(receivedSummary);
-      //       setMetadata(receivedSummary);
+            const receivedSummary = summmariseResData.metadata.flat();
+            console.log("Received Summary: " + receivedSummary);
+            setMetadata(receivedSummary);
 
-      //       setLoading(false);
-      //       console.log(metadata);
+            setLoading(false);
 
-      //       return "Summary generated successfully!";
-      //     },
-      //     error: (error) => {
-      //       let errorMessage = "Failed to generate summary";
-      //       if (axios.isAxiosError(error)) {
-      //         errorMessage = error.response?.data?.message || error.message;
-      //       }
-      //       return errorMessage;
-      //     },
-      //   }
-      // );
+            return "Summary generated successfully!";
+          },
+          error: (error) => {
+            let errorMessage = "Failed to generate summary";
+            if (axios.isAxiosError(error)) {
+              errorMessage = error.response?.data?.message || error.message;
+            }
+            return errorMessage;
+          },
+        }
+      );
     } catch (error) {
       let errorMessage = "An unexpected error occurred";
 
@@ -395,9 +395,10 @@ function App() {
     }
   };
 
+  const [selectedIndex, setSelectedIndex] = useState(0);
   useEffect(() => {
-    console.log("Updated Metadata:", metadata);
-  }, [metadata]);
+    console.log("Metadata array updated:", metadata);
+  }, [metadata]); // The effect runs whenever `metadata` changes.
   return (
     <Background>
       <Toaster position="top-right" richColors expand={true} />
@@ -479,7 +480,11 @@ function App() {
           </div>
 
           <div className="flex flex-wrap gap-2 justify-center">
-            <Button width="49.5%" onClick={handleBatchSummariseClick} loading={loading}>
+            <Button
+              width="49.5%"
+              onClick={handleBatchSummariseClick}
+              loading={loading}
+            >
               Batch Summarise
             </Button>
             <Button color="white" width="49.5%" loading={loading}>
@@ -488,35 +493,37 @@ function App() {
           </div>
 
           {/* Results Section */}
+
+          {/* Swiper Section */}
           <Swiper
-            navigation={false}
+            key={metadata ? metadata.length : 0}
+            navigation={nav}
             modules={[Navigation]}
             className="mySwiper"
+            onSlideChange={(swiper) => setSelectedIndex(swiper.activeIndex)}
           >
-            {metadata ? (
-              metadata.map((item, index) => (
-                <SwiperSlide key={index}>{item.title}</SwiperSlide>
-              ))
-            ) : (
-              <></>
-            )}
+            {metadata?.map((item, index) => (
+              <SwiperSlide key={index}>{item.Title}</SwiperSlide>
+            ))}
           </Swiper>
-          {metadata ? (
-            metadata.map((item, index) => (
-              <div key={index} className="flex gap-4">
+
+          {/* Textboxes Section */}
+          <div className="flex gap-4">
+            {metadata && metadata.length > 0 ? (
+              <>
                 <div className="flex-1 space-y-4">
                   <TextBox
                     label="Title"
                     variant="translucent"
                     width="100%"
-                    value={item.title || ""}
+                    value={metadata[selectedIndex]?.Title || ""}
                   />
                   <TextBox
                     label="Description"
                     variant="translucent"
                     width="100%"
                     rows={4}
-                    value={item.description || ""}
+                    value={metadata[selectedIndex]?.Description || ""}
                   />
                 </div>
                 <div className="flex-1">
@@ -525,39 +532,40 @@ function App() {
                     variant="translucent"
                     width="100%"
                     rows={8}
-                    value={item.results || ""}
+                    value={metadata[selectedIndex]?.Results || ""}
                   />
                 </div>
-              </div>
-            ))
-          ) : (
-            <div className="flex gap-4">
-              <div className="flex-1 space-y-4">
-                <TextBox
-                  label="Title"
-                  variant="translucent"
-                  width="100%"
-                  value="Video title will be here"
-                />
-                <TextBox
-                  label="Description"
-                  variant="translucent"
-                  width="100%"
-                  rows={4}
-                  value="Video description will be here"
-                />
-              </div>
-              <div className="flex-1">
-                <TextBox
-                  label="Results"
-                  variant="translucent"
-                  width="100%"
-                  rows={8}
-                  value="Summary/Ideas will be here"
-                />
-              </div>
-            </div>
-          )}
+              </>
+            ) : (
+              <>
+                <div className="flex-1 space-y-4">
+                  <TextBox
+                    label="Title"
+                    variant="translucent"
+                    width="100%"
+                    value="Video title will be here"
+                  />
+                  <TextBox
+                    label="Description"
+                    variant="translucent"
+                    width="100%"
+                    rows={4}
+                    value="Video description will be here"
+                  />
+                </div>
+                <div className="flex-1">
+                  <TextBox
+                    label="Results"
+                    variant="translucent"
+                    width="100%"
+                    rows={8}
+                    value="Summary/Ideas will be here"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
           <Button
             width="100%"
             onClick={handleDownloadFileClick}

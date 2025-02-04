@@ -1,12 +1,12 @@
 export interface Metadata {
-    videoId: string;
-    link: string;
-    title: string;
-    description: string;
-    uploader: string;
-    uploadDate: string;
-    results: string;
-    processed: boolean;
+    VideoId: string;
+    Link: string;
+    Title: string;
+    Description: string;
+    Uploader: string;
+    UploadDate: string;
+    Results: string;
+    Processed: boolean;
   }
   
 export interface ApiResponse<T> {

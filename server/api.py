@@ -153,7 +153,7 @@ def download_route():
             {
                 k.capitalize(): v
                 for k, v in metadata.items()
-                if k not in ["videoId", "processed"]
+                if k not in ["VideoId", "Processed"]
             }
         )
         rows.append(row)
