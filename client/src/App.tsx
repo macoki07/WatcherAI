@@ -17,6 +17,7 @@ function App() {
   const [metadata, setMetadata] = useState<Metadata[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [nav, setNav] = useState(false);
+
   const summariseUrl = async () => {
     setMetadata(null);
     setNav(false);
@@ -395,6 +396,101 @@ function App() {
     }
   };
 
+  const batchGenerateIdeas = async () => {
+    setMetadata(null);
+    setNav(true);
+    if (!file) {
+      toast.error("Please provide a file first!");
+      setLoading(false);
+      return;
+    }
+
+    // Create FormData and append the file from state
+    const formData = new FormData();
+    formData.append("file", file); // Field name "file" (match your server's expectations)
+
+    try {
+      const metadataRes = await axios.post(
+        "http://localhost:8080/api/batch/get_metadata",
+        formData,
+        {
+          headers: {
+            // Axios auto sets content-type
+          },
+        }
+      );
+
+      const metadataResData = metadataRes.data;
+      console.log("Raw response data:", metadataResData);
+
+      if (!metadataResData.success) {
+        throw new Error(metadataResData.message || "Failed to fetch metadata");
+      }
+
+      // Access the nested metadata object
+      const receivedMetadata = metadataResData.metadata;
+      console.log("Received Metadata:", receivedMetadata);
+
+      // Update state with the received metadata
+      setMetadata(receivedMetadata);
+
+      toast.success("Metadata fetched successfully!");
+
+      await toast.promise(
+        axios.post(
+          "http://localhost:8080/api/batch/generate_ideas",
+          { metadata: receivedMetadata },
+          { headers: { "Content-Type": "application/json" } }
+        ),
+        {
+          loading: "Generating Ideas...",
+          success: (summariseRes) => {
+            const summmariseResData = summariseRes.data;
+            console.log(summariseRes.data);
+            if (!summmariseResData.success) {
+              throw new Error(summmariseResData.message);
+            }
+
+            const receivedSummary = summmariseResData.metadata.flat();
+            console.log("Received Summary: " + receivedSummary);
+            setMetadata(receivedSummary);
+
+            setLoading(false);
+
+            return "Summary generated successfully!";
+          },
+          error: (error) => {
+            let errorMessage = "Failed to generate summary";
+            if (axios.isAxiosError(error)) {
+              errorMessage = error.response?.data?.message || error.message;
+            }
+            return errorMessage;
+          },
+        }
+      );
+    } catch (error) {
+      let errorMessage = "An unexpected error occurred";
+
+      if (axios.isAxiosError(error)) {
+        errorMessage = error.response?.data?.message || error.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      setLoading(false);
+      toast.error(errorMessage);
+    }
+  };
+  const handleBatchGenerateIdeasClick = async () => {
+    try {
+      setLoading(true);
+      await batchGenerateIdeas();
+      // If successful, you can do something here
+    } catch (err) {
+      console.error("Error during download:", err);
+      setLoading(false);
+    }
+  };
+
   const [selectedIndex, setSelectedIndex] = useState(0);
   useEffect(() => {
     console.log("Metadata array updated:", metadata);
@@ -487,14 +583,12 @@ function App() {
             >
               Batch Summarise
             </Button>
-            <Button color="white" width="49.5%" loading={loading}>
+            <Button color="white" width="49.5%" loading={loading} onClick={handleBatchGenerateIdeasClick}>
               Batch Generate Ideas
             </Button>
           </div>
 
           {/* Results Section */}
-
-          {/* Swiper Section */}
           <Swiper
             key={metadata ? metadata.length : 0}
             navigation={nav}
@@ -507,7 +601,6 @@ function App() {
             ))}
           </Swiper>
 
-          {/* Textboxes Section */}
           <div className="flex gap-4">
             {metadata && metadata.length > 0 ? (
               <>
