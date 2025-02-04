@@ -136,40 +136,6 @@ def handle_single_action(metadata_list, action):
     return jsonify({"success": True, "metadata": processed_metadata_list}), 200
 
 
-@api.route("/single/download", methods=["POST"])
-def download_route():
-    data = request.get_json()
-    if not data.get("metadata") or not isinstance(data["metadata"], list):
-        return jsonify({"success": False, "message": "Invalid metadata format"}), 400
-
-    metadata_list = data["metadata"]
-
-    rows = []
-    for metadata in metadata_list:
-        # Start with S/N as the first key
-        row = {"S/N": len(rows) + 1}
-        # Then add the other keys (excluding "videoId" and "processed")
-        row.update(
-            {
-                k.capitalize(): v
-                for k, v in metadata.items()
-                if k not in ["VideoId", "Processed"]
-            }
-        )
-        rows.append(row)
-
-    df = pd.DataFrame(rows)
-    df.rename(columns={"Uploaddate": "Upload Date"}, inplace=True)
-
-    # Generate Excel file
-    file_stream = io.BytesIO()
-    with pd.ExcelWriter(file_stream, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Results")
-    file_stream.seek(0)
-
-    return send_file(file_stream, as_attachment=True, download_name="output.xlsx")
-
-
 @api.route("/batch/get_metadata", methods=["POST"])
 def get_metadata_batch_route():
     # Check if the request contains a file
@@ -191,7 +157,7 @@ def get_metadata_batch_route():
     df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
 
     res_array = []
-    
+
     for index, link in enumerate(df["Link"]):
         res_dict = {
             "VideoId": "",
@@ -219,13 +185,14 @@ def get_metadata_batch_route():
 
         upload_date = info_dict.get("upload_date")
         formatted_date = pd.to_datetime(upload_date, errors="coerce").strftime(
-           "%d/%m/%y"
+            "%d/%m/%y"
         )
         res_dict["UploadDate"] = formatted_date
         res_array.append(res_dict)
 
     print(res_array)
     return jsonify({"success": True, "metadata": res_array}), 200
+
 
 def validate_batch_metadata(func):
     @wraps(func)
@@ -257,6 +224,7 @@ def validate_batch_metadata(func):
         return func(metadata_list, *args, **kwargs)
 
     return wrapper
+
 
 def handle_batch_processing(metadata_list, processor):
     processed_metadata_list = []
@@ -304,3 +272,77 @@ def handle_batch_action(metadata_list, action):
     processed_metadata_list.append(processed_metadata)
 
     return jsonify({"success": True, "metadata": processed_metadata_list}), 200
+
+
+@api.route("/single/download", methods=["POST"])
+def download_route():
+    data = request.get_json()
+    if not data or not isinstance(data, list):
+        return jsonify({"success": False, "message": "Invalid metadata format"}), 400
+
+    rows = []
+    for metadata in data:
+        # Start with S/N as the first key
+        row = {"S/N": len(rows) + 1}
+        # Then add the other keys (excluding "videoId" and "processed")
+        row.update(
+            {
+                k.capitalize(): v
+                for k, v in metadata.items()
+                if k not in ["VideoId", "Processed"]
+            }
+        )
+        rows.append(row)
+
+    df = pd.DataFrame(rows)
+    df.rename(columns={"Uploaddate": "Upload Date"}, inplace=True)
+
+    # Generate Excel file
+    file_stream = io.BytesIO()
+    with pd.ExcelWriter(file_stream, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Results")
+    file_stream.seek(0)
+
+    return send_file(file_stream, as_attachment=True, download_name="output.xlsx")
+
+
+@api.route("/batch/download", methods=["POST"])
+def batch_download_route():
+    # Get the JSON data from the request; expect it to be a list of dictionaries.
+    data = request.get_json()
+    if not data or not isinstance(data, list):
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "Invalid data format.",
+                }
+            ),
+            400,
+        )
+
+    rows = []
+    # Iterate over each dictionary in the list and build rows for the Excel file.
+    for idx, record in enumerate(data, start=1):
+        # Start with S/N as the first column
+        row = {"S/N": idx}
+        row.update(
+            {
+                k.capitalize(): v
+                for k, v in record.items()
+                if k not in ["VideoId", "Processed"]
+            }
+        )
+        rows.append(row)
+
+    df = pd.DataFrame(rows)
+    df.rename(columns={"Uploaddate": "Upload Date"}, inplace=True)
+
+    # Generate an Excel file in memory
+    file_stream = io.BytesIO()
+    with pd.ExcelWriter(file_stream, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Results")
+    file_stream.seek(0)
+
+    # Send the Excel file as an attachment
+    return send_file(file_stream, as_attachment=True, download_name="output.xlsx")

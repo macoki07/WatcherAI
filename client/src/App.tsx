@@ -336,13 +336,25 @@ function App() {
 
   const downloadFile = async () => {
     try {
+      // Validate metadata first
       if (!metadata || metadata.length === 0) {
         throw new Error("No file to download");
       }
 
+      // Determine the API route and payload based on the number of elements in metadata
+      let apiRoute, payload;
+      if (metadata.length === 1) {
+        apiRoute = "single/download";
+        payload = metadata;
+      } else {
+        apiRoute = "batch/download";
+        payload = metadata;
+      }
+
+      // Make the API call
       const response = await axios.post(
-        "http://localhost:8080/api/single/download",
-        { metadata: metadata },
+        `http://localhost:8080/api/${apiRoute}`,
+        payload,
         {
           responseType: "blob", // Important: Set responseType to 'blob' for file downloads
           headers: {
@@ -361,15 +373,15 @@ function App() {
       document.body.appendChild(link);
       link.click();
 
-      // Clean up
+      // Clean up: remove the anchor and revoke the object URL
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
       toast.success("File downloaded successfully!");
-      setLoading(false);
     } catch (error) {
       handleApiError(error);
-
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -377,7 +389,6 @@ function App() {
     try {
       setLoading(true);
       await downloadFile();
-      // If successful, you can do something here
     } catch (err) {
       console.error("Error during download:", err);
       setLoading(false);
