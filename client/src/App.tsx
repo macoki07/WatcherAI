@@ -449,9 +449,7 @@ function App() {
               <p className="text-gray-300 mb-2">
                 Choose a file or drag & drop it here
               </p>
-              <p className="text-gray-500 text-sm">
-                Accepted formats: XLSX, CSV
-              </p>
+              <p className="text-gray-500 text-sm">Accepted format: XLSX</p>
             </div>
             {/* File Input */}
             <input
@@ -459,7 +457,7 @@ function App() {
               onChange={handleFileChange} // On file selection, update state
               className="hidden" // Hide the default file input
               id="file-upload" // Give the file input an id
-              accept=".xlsx, .csv"
+              accept=".xlsx"
             />
             <Button
               variant="outline"
@@ -502,7 +500,11 @@ function App() {
             onSlideChange={(swiper) => setSelectedIndex(swiper.activeIndex)}
           >
             {metadata?.map((item, index) => (
-              <SwiperSlide key={index}>{item.Title}</SwiperSlide>
+              <SwiperSlide key={index}>
+                <p className="text-white justify-center flex ">
+                  Link {index+1}: {item.Title}
+                </p>
+              </SwiperSlide>
             ))}
           </Swiper>
 
