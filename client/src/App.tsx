@@ -3,7 +3,7 @@ import Background from "./components/Background";
 import Button from "./components/Button";
 import InputBox from "./components/InputBox";
 import { FiDownload, FiUpload } from "react-icons/fi";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Header from "./components/Header";
 import axios from "axios";
 import TextBox from "./components/TextBox";
@@ -16,21 +16,68 @@ function App() {
   const [url, setUrl] = useState("");
   const [metadata, setMetadata] = useState<Metadata[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [nav, setNav] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0]; // Get the first file selected (optional chaining to handle null/undefined)
+    setFile(selectedFile || null); // Update the state with the selected file or null if undefined
+  };
 
-  const summariseUrl = async () => {
+  const handleFileChangeClick = () => {
+    const fileInput = document.getElementById(
+      "file-upload"
+    ) as HTMLInputElement;
+    fileInput?.click(); // Trigger the file input click programmatically
+  };
+
+  const handleApiError = (
+    error: unknown,
+    fallbackMessage = "An unexpected error occurred"
+  ) => {
+    let errorMessage = fallbackMessage;
+
+    if (axios.isAxiosError(error)) {
+      errorMessage = error.response?.data?.message || error.message;
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    // Assuming setLoading and toast are in scope
+    setLoading(false);
+    toast.error(errorMessage);
+  };
+
+  // Helper function to fetch metadata and then perform the desired action
+  const processUrl = async ({
+    actionEndpoint, // endpoint for the second API call (summarise or generate ideas)
+    loadingMessage, // message to display while processing
+    successMessage, // success message to display on completion
+    transformResult, // a function to transform the received data (if needed)
+  }: {
+    actionEndpoint: string;
+    loadingMessage: string;
+    successMessage: string;
+    transformResult?: (metadata: any) => Metadata[];
+  }) => {
+    // Clear state and hide navigation if needed
     setMetadata(null);
     setNav(false);
+
+    if (!url) {
+      toast.error("Please provide a url first!");
+      setLoading(false);
+      return;
+    }
+
     try {
+      // First, fetch the metadata
       const metadataRes = await axios.post(
         "http://localhost:8080/api/single/get_metadata",
         { url: url },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
+        { headers: { "Content-Type": "application/json" } }
       );
+
       const metadataResData = metadataRes.data;
       console.log("Raw response data:", metadataResData);
 
@@ -38,11 +85,10 @@ function App() {
         throw new Error(metadataResData.message || "Failed to fetch metadata");
       }
 
-      // Access the nested metadata object
+      // Extract and set the initial metadata state
       const receivedMetadata = metadataResData.metadata;
       console.log("Received Metadata:", receivedMetadata);
 
-      // Update state with the received metadata
       setMetadata([
         {
           VideoId: receivedMetadata.VideoId,
@@ -58,43 +104,34 @@ function App() {
 
       toast.success("Metadata fetched successfully!");
 
+      // Now perform the specific action (summarise or generate ideas) wrapped in a toast promise
       await toast.promise(
         axios.post(
-          "http://localhost:8080/api/single/summarise",
+          `http://localhost:8080/api/single/${actionEndpoint}`,
           { metadata: receivedMetadata },
           { headers: { "Content-Type": "application/json" } }
         ),
         {
-          loading: "Summarizing video content...",
-          success: (summariseRes) => {
-            const summmariseResData = summariseRes.data;
-            console.log(summariseRes.data);
-            if (!summmariseResData.success) {
-              throw new Error(summmariseResData.message);
+          loading: loadingMessage,
+          success: (actionRes) => {
+            const actionResData = actionRes.data;
+
+            if (!actionResData.success) {
+              throw new Error(actionResData.message);
             }
 
-            const receivedSummary = summmariseResData.metadata;
-            console.log(receivedSummary);
-            setMetadata([
-              {
-                VideoId: receivedSummary[0].VideoId,
-                Link: receivedSummary[0].Link,
-                Title: receivedSummary[0].Title,
-                Description: receivedSummary[0].Description,
-                Uploader: receivedSummary[0].Uploader,
-                UploadDate: receivedSummary[0].UploadDate,
-                Results: receivedSummary[0].Results,
-                Processed: receivedSummary[0].Processed,
-              },
-            ]);
+            // Optionally transform the response data if needed
+            const finalData = transformResult
+              ? transformResult(actionResData.metadata)
+              : actionResData.metadata;
 
+            // Update the metadata state with the new data
+            setMetadata(finalData);
             setLoading(false);
-            console.log(metadata);
-
-            return "Summary generated successfully!";
+            return successMessage;
           },
           error: (error) => {
-            let errorMessage = "Failed to generate summary";
+            let errorMessage = "Failed to process request";
             if (axios.isAxiosError(error)) {
               errorMessage = error.response?.data?.message || error.message;
             }
@@ -103,41 +140,110 @@ function App() {
         }
       );
     } catch (error) {
-      let errorMessage = "An unexpected error occurred";
-
-      if (axios.isAxiosError(error)) {
-        errorMessage = error.response?.data?.message || error.message;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      setLoading(false);
-      toast.error(errorMessage);
+      handleApiError(error);
     }
   };
 
+  // Usage in your summarise handler:
   const handleSummariseUrlClick = async () => {
     try {
       setLoading(true);
-      await summariseUrl();
+      await processUrl({
+        actionEndpoint: "summarise",
+        loadingMessage: "Summarizing video content...",
+        successMessage: "Summary generated successfully!",
+        transformResult: (metadata) => {
+          // assuming the returned metadata is an array and you want the first item
+          const item = metadata[0];
+          return [
+            {
+              VideoId: item.VideoId,
+              Link: item.Link,
+              Title: item.Title,
+              Description: item.Description,
+              Uploader: item.Uploader,
+              UploadDate: item.UploadDate,
+              Results: item.Results,
+              Processed: item.Processed,
+            },
+          ];
+        },
+      });
     } catch (err) {
       console.error("Error during summarise:", err);
       setLoading(false);
     }
   };
 
-  const generateIdeasUrl = async () => {
-    setMetadata(null);
-    setNav(false);
+  // Usage in your generate ideas handler:
+  const handleGenerateIdeasUrlClick = async () => {
     try {
+      setLoading(true);
+      await processUrl({
+        actionEndpoint: "generate_ideas",
+        loadingMessage: "Generating Video Ideas...",
+        successMessage: "Ideas generated successfully!",
+        transformResult: (metadata) => {
+          const item = metadata[0];
+          return [
+            {
+              VideoId: item.VideoId,
+              Link: item.Link,
+              Title: item.Title,
+              Description: item.Description,
+              Uploader: item.Uploader,
+              UploadDate: item.UploadDate,
+              Results: item.Results,
+              Processed: item.Processed,
+            },
+          ];
+        },
+      });
+    } catch (err) {
+      console.error("Error during generating ideas:", err);
+      setLoading(false);
+    }
+  };
+
+  // Helper function to process a batch file for a given action endpoint
+  const processBatchFile = async ({
+    actionEndpoint, // e.g., "summarise" or "generate_ideas"
+    loadingMessage, // Message to show while processing
+    successMessage, // Message to show on successful completion
+    transformResult, // Optional function to transform the returned result
+  }: {
+    actionEndpoint: string;
+    loadingMessage: string;
+    successMessage: string;
+    transformResult?: (metadata: any) => Metadata[];
+  }) => {
+    // Check if file exists
+    if (!file) {
+      toast.error("Please provide a file first!");
+      setLoading(false);
+      return;
+    }
+
+    // Reset metadata and show navigation (as per your requirements)
+    setMetadata(null);
+    setNav(true);
+
+    // Prepare the form data with the file
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      // First, fetch metadata from the batch endpoint
       const metadataRes = await axios.post(
-        "http://localhost:8080/api/single/get_metadata",
-        { url: url },
+        "http://localhost:8080/api/batch/get_metadata",
+        formData,
         {
           headers: {
-            "Content-Type": "application/json",
+            // Axios automatically sets the Content-Type for FormData
           },
         }
       );
+
       const metadataResData = metadataRes.data;
       console.log("Raw response data:", metadataResData);
 
@@ -145,62 +251,43 @@ function App() {
         throw new Error(metadataResData.message || "Failed to fetch metadata");
       }
 
-      // Access the nested metadata object
+      // Extract metadata and update state
       const receivedMetadata = metadataResData.metadata;
       console.log("Received Metadata:", receivedMetadata);
-
-      // Update state with the received metadata
-      setMetadata([
-        {
-          VideoId: receivedMetadata.VideoId,
-          Link: receivedMetadata.Link,
-          Title: receivedMetadata.Title,
-          Description: receivedMetadata.Description,
-          Uploader: receivedMetadata.Uploader,
-          UploadDate: receivedMetadata.UploadDate,
-          Results: receivedMetadata.Results,
-          Processed: receivedMetadata.Processed,
-        },
-      ]);
-
+      setMetadata(receivedMetadata);
       toast.success("Metadata fetched successfully!");
 
+      // Now perform the specific action (summarise or generate ideas)
       await toast.promise(
         axios.post(
-          "http://localhost:8080/api/single/generate_ideas",
+          `http://localhost:8080/api/batch/${actionEndpoint}`,
           { metadata: receivedMetadata },
           { headers: { "Content-Type": "application/json" } }
         ),
         {
-          loading: "Generating Video Ideas...",
-          success: (generateIdeaRes) => {
-            const generateIdeaResData = generateIdeaRes.data;
+          loading: loadingMessage,
+          success: (actionRes) => {
+            const actionResData = actionRes.data;
+            console.log("Action response data:", actionResData);
 
-            if (!generateIdeaResData.success) {
-              throw new Error(generateIdeaResData.message);
+            if (!actionResData.success) {
+              throw new Error(actionResData.message);
             }
 
-            const receivedIdeas = generateIdeaResData.metadata;
+            // The API returns an array (or nested arrays), so flatten it.
+            const resultData = actionResData.metadata.flat();
 
-            setMetadata([
-              {
-                VideoId: receivedIdeas[0].VideoId,
-                Link: receivedIdeas[0].Link,
-                Title: receivedIdeas[0].Title,
-                Description: receivedIdeas[0].Description,
-                Uploader: receivedIdeas[0].Uploader,
-                UploadDate: receivedIdeas[0].UploadDate,
-                Results: receivedIdeas[0].Results,
-                Processed: receivedIdeas[0].Processed,
-              },
-            ]);
+            // Optionally transform the result before updating state.
+            const finalData = transformResult
+              ? transformResult(resultData)
+              : resultData;
 
+            setMetadata(finalData);
             setLoading(false);
-
-            return "Ideas generated successfully!";
+            return successMessage;
           },
           error: (error) => {
-            let errorMessage = "Failed to generate ideas";
+            let errorMessage = "Failed to process request";
             if (axios.isAxiosError(error)) {
               errorMessage = error.response?.data?.message || error.message;
             }
@@ -209,24 +296,40 @@ function App() {
         }
       );
     } catch (error) {
-      let errorMessage = "An unexpected error occurred";
-
-      if (axios.isAxiosError(error)) {
-        errorMessage = error.response?.data?.message || error.message;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      setLoading(false);
-      toast.error(errorMessage);
+      handleApiError(error);
     }
   };
 
-  const handleGenerateIdeasUrlClick = async () => {
+  // Handler for batch summarisation
+  const handleBatchSummariseClick = async () => {
     try {
       setLoading(true);
-      await generateIdeasUrl();
+      await processBatchFile({
+        actionEndpoint: "summarise",
+        loadingMessage: "Summarizing video content...",
+        successMessage: "Summary generated successfully!",
+        // If you need to change the structure of the result,
+        // provide a transformResult function. Otherwise, you can omit it.
+        transformResult: (data) => data,
+      });
     } catch (err) {
-      console.error("Error during generating ideas:", err);
+      console.error("Error during batch summarisation:", err);
+      setLoading(false);
+    }
+  };
+
+  // Handler for batch generating ideas
+  const handleBatchGenerateIdeasClick = async () => {
+    try {
+      setLoading(true);
+      await processBatchFile({
+        actionEndpoint: "generate_ideas",
+        loadingMessage: "Generating Ideas...",
+        successMessage: "Ideas generated successfully!",
+        transformResult: (data) => data,
+      });
+    } catch (err) {
+      console.error("Error during batch idea generation:", err);
       setLoading(false);
     }
   };
@@ -265,16 +368,8 @@ function App() {
       toast.success("File downloaded successfully!");
       setLoading(false);
     } catch (error) {
-      let errorMessage = "An unexpected error occurred";
+      handleApiError(error);
 
-      if (axios.isAxiosError(error)) {
-        errorMessage = error.response?.data?.message || error.message;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-
-      setLoading(false);
-      toast.error(errorMessage);
     }
   };
 
@@ -288,213 +383,7 @@ function App() {
       setLoading(false);
     }
   };
-  const [file, setFile] = useState<File | null>(null);
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0]; // Get the first file selected (optional chaining to handle null/undefined)
-    setFile(selectedFile || null); // Update the state with the selected file or null if undefined
-  };
 
-  const handleFileChangeClick = () => {
-    const fileInput = document.getElementById(
-      "file-upload"
-    ) as HTMLInputElement;
-    fileInput?.click(); // Trigger the file input click programmatically
-  };
-
-  const batchSummarise = async () => {
-    setMetadata(null);
-    setNav(true);
-    if (!file) {
-      toast.error("Please provide a file first!");
-      setLoading(false);
-      return;
-    }
-
-    // Create FormData and append the file from state
-    const formData = new FormData();
-    formData.append("file", file); // Field name "file" (match your server's expectations)
-
-    try {
-      const metadataRes = await axios.post(
-        "http://localhost:8080/api/batch/get_metadata",
-        formData,
-        {
-          headers: {
-            // Axios auto sets content-type
-          },
-        }
-      );
-
-      const metadataResData = metadataRes.data;
-      console.log("Raw response data:", metadataResData);
-
-      if (!metadataResData.success) {
-        throw new Error(metadataResData.message || "Failed to fetch metadata");
-      }
-
-      // Access the nested metadata object
-      const receivedMetadata = metadataResData.metadata;
-      console.log("Received Metadata:", receivedMetadata);
-
-      // Update state with the received metadata
-      setMetadata(receivedMetadata);
-
-      toast.success("Metadata fetched successfully!");
-
-      await toast.promise(
-        axios.post(
-          "http://localhost:8080/api/batch/summarise",
-          { metadata: receivedMetadata },
-          { headers: { "Content-Type": "application/json" } }
-        ),
-        {
-          loading: "Summarizing video content...",
-          success: (summariseRes) => {
-            const summmariseResData = summariseRes.data;
-            console.log(summariseRes.data);
-            if (!summmariseResData.success) {
-              throw new Error(summmariseResData.message);
-            }
-
-            const receivedSummary = summmariseResData.metadata.flat();
-            console.log("Received Summary: " + receivedSummary);
-            setMetadata(receivedSummary);
-
-            setLoading(false);
-
-            return "Summary generated successfully!";
-          },
-          error: (error) => {
-            let errorMessage = "Failed to generate summary";
-            if (axios.isAxiosError(error)) {
-              errorMessage = error.response?.data?.message || error.message;
-            }
-            return errorMessage;
-          },
-        }
-      );
-    } catch (error) {
-      let errorMessage = "An unexpected error occurred";
-
-      if (axios.isAxiosError(error)) {
-        errorMessage = error.response?.data?.message || error.message;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      setLoading(false);
-      toast.error(errorMessage);
-    }
-  };
-  const handleBatchSummariseClick = async () => {
-    try {
-      setLoading(true);
-      await batchSummarise();
-      // If successful, you can do something here
-    } catch (err) {
-      console.error("Error during download:", err);
-      setLoading(false);
-    }
-  };
-
-  const batchGenerateIdeas = async () => {
-    setMetadata(null);
-    setNav(true);
-    if (!file) {
-      toast.error("Please provide a file first!");
-      setLoading(false);
-      return;
-    }
-
-    // Create FormData and append the file from state
-    const formData = new FormData();
-    formData.append("file", file); // Field name "file" (match your server's expectations)
-
-    try {
-      const metadataRes = await axios.post(
-        "http://localhost:8080/api/batch/get_metadata",
-        formData,
-        {
-          headers: {
-            // Axios auto sets content-type
-          },
-        }
-      );
-
-      const metadataResData = metadataRes.data;
-      console.log("Raw response data:", metadataResData);
-
-      if (!metadataResData.success) {
-        throw new Error(metadataResData.message || "Failed to fetch metadata");
-      }
-
-      // Access the nested metadata object
-      const receivedMetadata = metadataResData.metadata;
-      console.log("Received Metadata:", receivedMetadata);
-
-      // Update state with the received metadata
-      setMetadata(receivedMetadata);
-
-      toast.success("Metadata fetched successfully!");
-
-      await toast.promise(
-        axios.post(
-          "http://localhost:8080/api/batch/generate_ideas",
-          { metadata: receivedMetadata },
-          { headers: { "Content-Type": "application/json" } }
-        ),
-        {
-          loading: "Generating Ideas...",
-          success: (summariseRes) => {
-            const summmariseResData = summariseRes.data;
-            console.log(summariseRes.data);
-            if (!summmariseResData.success) {
-              throw new Error(summmariseResData.message);
-            }
-
-            const receivedSummary = summmariseResData.metadata.flat();
-            console.log("Received Summary: " + receivedSummary);
-            setMetadata(receivedSummary);
-
-            setLoading(false);
-
-            return "Summary generated successfully!";
-          },
-          error: (error) => {
-            let errorMessage = "Failed to generate summary";
-            if (axios.isAxiosError(error)) {
-              errorMessage = error.response?.data?.message || error.message;
-            }
-            return errorMessage;
-          },
-        }
-      );
-    } catch (error) {
-      let errorMessage = "An unexpected error occurred";
-
-      if (axios.isAxiosError(error)) {
-        errorMessage = error.response?.data?.message || error.message;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      setLoading(false);
-      toast.error(errorMessage);
-    }
-  };
-  const handleBatchGenerateIdeasClick = async () => {
-    try {
-      setLoading(true);
-      await batchGenerateIdeas();
-      // If successful, you can do something here
-    } catch (err) {
-      console.error("Error during download:", err);
-      setLoading(false);
-    }
-  };
-
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  useEffect(() => {
-    console.log("Metadata array updated:", metadata);
-  }, [metadata]); // The effect runs whenever `metadata` changes.
   return (
     <Background>
       <Toaster position="top-right" richColors expand={true} />
@@ -583,7 +472,12 @@ function App() {
             >
               Batch Summarise
             </Button>
-            <Button color="white" width="49.5%" loading={loading} onClick={handleBatchGenerateIdeasClick}>
+            <Button
+              color="white"
+              width="49.5%"
+              loading={loading}
+              onClick={handleBatchGenerateIdeasClick}
+            >
               Batch Generate Ideas
             </Button>
           </div>
