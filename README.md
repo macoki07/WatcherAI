@@ -14,10 +14,10 @@ This project is structured in such a way that it uses separate frameworks for bo
 - **NodeJS**: v22+
 - **Ollama**: latest version
 
-Users MUST install llama3.2:3b on Ollama before proceeding further
+Users MUST install llama3:8b on Ollama before proceeding further
 
 ```bash
-ollama run llama3.2
+ollama run llama3
 ```
 ### 2. Installation & Dependencies
 
