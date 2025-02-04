@@ -1,14 +1,15 @@
 from flask import Flask
 from flask_cors import CORS
-from api import api
+from api.batch_apis import batch
+from api.single_apis import single
 
 def create_app():
     app = Flask(__name__)
     CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
 
     # Register Blueprint from api.py
-    app.register_blueprint(api, url_prefix='/api')
-    
+    app.register_blueprint(single, url_prefix='/api/single')
+    app.register_blueprint(batch, url_prefix='/api/batch')
     
     return app
 
