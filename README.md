@@ -10,11 +10,11 @@ This project is structured in such a way that it uses separate frameworks for bo
 
 ### 1. Requirements
 
-- **Python**: v3.9+
-- **NodeJS**: v22+
-- **Ollama**: latest version
+- **Python**: v3.9+ (Download Link: https://www.python.org/downloads/)
+- **NodeJS**: v22+ (Download Link: https://nodejs.org/en)
+- **Ollama**: latest version (Download Link: https://ollama.com/)
 
-Users MUST install llama3:8b on Ollama before proceeding further
+Users MUST install llama3:8b on Ollama before proceeding further (* Can run anywhere - it's just to download the model locally)
 
 ```bash
 ollama run llama3
