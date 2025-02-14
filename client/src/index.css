@@ -21,13 +21,13 @@
     background: radial-gradient(
       circle at center,
       rgba(40, 255, 0, 0.15) 0%,  /* Increased opacity and brighter green */
-      rgba(0, 0, 0, 1) 70%        /* Earlier falloff to maintain contrast */
+      rgba(0, 0, 0, 1) 70%        
     );
   }
 
   .green-glow {
     @apply absolute;
-    width: 45rem;  /* Slightly larger size */
+    width: 45rem;  
     height: 45rem;
     @apply bg-green-400/50 rounded-full blur-[150px]; /* Brighter green (400), higher opacity, larger blur */
     mix-blend-mode: screen;  /* Better blending with background */

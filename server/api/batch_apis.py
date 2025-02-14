@@ -68,7 +68,8 @@ def get_metadata_batch_route():
 
     file = request.files["file"]
     filename = file.filename
-    # Check if the file is empty
+
+    # Check if the filename is empty
     if filename == "":
         return jsonify({"success": False, "message": "Empty filename"}), 400
 
@@ -77,7 +78,7 @@ def get_metadata_batch_route():
     elif filename.endswith(".xlsx"):
         df = pd.read_excel(file)
 
-    # Remove "Unnamed" columns
+    # Remove "Unnamed" columns if any
     df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
 
     res_array = []

@@ -5,7 +5,7 @@ interface Props {
   width?: string;
   height?: string;
   shape?: "rounded" | "default";
-  color?: "primary" | "white";
+  color?: "primary" | "white" | "info";
   variant?: "solid" | "outline" | "ghost";
   size?: "sm" | "md" | "lg";
   disabled?: boolean;
@@ -53,6 +53,12 @@ const Button = ({
         ghost: "text-white hover:bg-white/10 focus:ring-white",
         loading: "bg-gray-500 text-black cursor-not-allowed",
       },
+    info: {
+        solid: "bg-blue-500 text-white hover:bg-blue-600 focus:ring-blue-500",
+        outline: "border-2 border-blue-500 text-blue-500 hover:bg-blue-50 focus:ring-blue-500",
+        ghost: "text-blue-500 hover:bg-blue-50 focus:ring-blue-500",
+        loading: "bg-gray-500 text-black cursor-not-allowed",
+    },
   };
   const currentVariant = loading ? "loading" : variant;
   // console.log("button renders")

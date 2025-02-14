@@ -83,7 +83,7 @@ def get_metadata_route():
         return jsonify({"success": False, "message": "Invalid YouTube link"}), 400
 
     youtube_link = link.group(0)
-    video_id = utils.get_video_id(youtube_link)  # Ensure this function is correct
+    video_id = utils.get_video_id(youtube_link) # Extract video ID
 
     try:
         info_dict = utils.get_metadata(youtube_link)
@@ -145,7 +145,7 @@ def download_route():
     for metadata in data:
         # Start with S/N as the first key
         row = {"S/N": len(rows) + 1}
-        # Then add the other keys (excluding "videoId" and "processed")
+        # Then add the other keys (excluding "VideoId" and "Processed")
         row.update(
             {
                 k.capitalize(): v

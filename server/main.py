@@ -7,7 +7,7 @@ def create_app():
     app = Flask(__name__)
     CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
 
-    # Register Blueprint from api.py
+    # Register Blueprints
     app.register_blueprint(single, url_prefix='/api/single')
     app.register_blueprint(batch, url_prefix='/api/batch')
     

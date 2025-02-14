@@ -19,8 +19,9 @@ function App() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [nav, setNav] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0]; // Get the first file selected (optional chaining to handle null/undefined)
+    const selectedFile = e.target.files?.[0];
     setFile(selectedFile || null); // Update the state with the selected file or null if undefined
   };
 
@@ -43,14 +44,13 @@ function App() {
       errorMessage = error.message;
     }
 
-    // Assuming setLoading and toast are in scope
     setLoading(false);
     toast.error(errorMessage);
   };
 
   // Helper function to fetch metadata and then perform the desired action
   const processUrl = async ({
-    actionEndpoint, // endpoint for the second API call (summarise or generate ideas)
+    actionEndpoint, // endpoint for the second API call
     loadingMessage, // message to display while processing
     successMessage, // success message to display on completion
     transformResult, // a function to transform the received data (if needed)
@@ -71,7 +71,7 @@ function App() {
     }
 
     try {
-      // First, fetch the metadata
+      // fetch the metadata
       const metadataRes = await axios.post(
         "http://localhost:8080/api/single/get_metadata",
         { url: url },
@@ -85,7 +85,7 @@ function App() {
         throw new Error(metadataResData.message || "Failed to fetch metadata");
       }
 
-      // Extract and set the initial metadata state
+      // set the initial metadata state
       const receivedMetadata = metadataResData.metadata;
       console.log("Received Metadata:", receivedMetadata);
 
@@ -104,7 +104,7 @@ function App() {
 
       toast.success("Metadata fetched successfully!");
 
-      // Now perform the specific action (summarise or generate ideas) wrapped in a toast promise
+      // Now perform the specific action wrapped in a toast promise
       await toast.promise(
         axios.post(
           `http://localhost:8080/api/single/${actionEndpoint}`,
@@ -144,7 +144,7 @@ function App() {
     }
   };
 
-  // Usage in your summarise handler:
+  // handle url summarisation
   const handleSummariseUrlClick = async () => {
     try {
       setLoading(true);
@@ -153,7 +153,6 @@ function App() {
         loadingMessage: "Summarizing video content...",
         successMessage: "Summary generated successfully!",
         transformResult: (metadata) => {
-          // assuming the returned metadata is an array and you want the first item
           const item = metadata[0];
           return [
             {
@@ -175,7 +174,7 @@ function App() {
     }
   };
 
-  // Usage in your generate ideas handler:
+  // handle url idea generation
   const handleGenerateIdeasUrlClick = async () => {
     try {
       setLoading(true);
@@ -207,7 +206,7 @@ function App() {
 
   // Helper function to process a batch file for a given action endpoint
   const processBatchFile = async ({
-    actionEndpoint, // e.g., "summarise" or "generate_ideas"
+    actionEndpoint,
     loadingMessage, // Message to show while processing
     successMessage, // Message to show on successful completion
     transformResult, // Optional function to transform the returned result
@@ -224,7 +223,7 @@ function App() {
       return;
     }
 
-    // Reset metadata and show navigation (as per your requirements)
+    // Reset metadata and show navigation
     setMetadata(null);
     setNav(true);
 
@@ -233,7 +232,7 @@ function App() {
     formData.append("file", file);
 
     try {
-      // First, fetch metadata from the batch endpoint
+      // fetch metadata from the batch endpoint
       const metadataRes = await axios.post(
         "http://localhost:8080/api/batch/get_metadata",
         formData,
@@ -251,13 +250,13 @@ function App() {
         throw new Error(metadataResData.message || "Failed to fetch metadata");
       }
 
-      // Extract metadata and update state
+      // get metadata and update state
       const receivedMetadata = metadataResData.metadata;
       console.log("Received Metadata:", receivedMetadata);
       setMetadata(receivedMetadata);
       toast.success("Metadata fetched successfully!");
 
-      // Now perform the specific action (summarise or generate ideas)
+      // Now perform the specific action
       await toast.promise(
         axios.post(
           `http://localhost:8080/api/batch/${actionEndpoint}`,
@@ -351,7 +350,6 @@ function App() {
         payload = metadata;
       }
 
-      // Make the API call
       const response = await axios.post(
         `http://localhost:8080/api/${apiRoute}`,
         payload,
@@ -416,6 +414,9 @@ function App() {
                 />
               </div>
               <div className="flex gap-2">
+                <Button color="info" loading={loading}>
+                  Get Transcript
+                </Button>
                 <Button onClick={handleSummariseUrlClick} loading={loading}>
                   Summarise
                 </Button>
@@ -474,16 +475,15 @@ function App() {
           </div>
 
           <div className="flex flex-wrap gap-2 justify-center">
-            <Button
-              width="49.5%"
-              onClick={handleBatchSummariseClick}
-              loading={loading}
-            >
+            <Button width="32.5%" color="info" loading={loading}>
+              Batch Get Transcript
+            </Button>
+            <Button width="32.5%" onClick={handleBatchSummariseClick} loading={loading}>
               Batch Summarise
             </Button>
             <Button
+              width="32.5%" 
               color="white"
-              width="49.5%"
               loading={loading}
               onClick={handleBatchGenerateIdeasClick}
             >
@@ -502,7 +502,7 @@ function App() {
             {metadata?.map((item, index) => (
               <SwiperSlide key={index}>
                 <p className="text-white justify-center flex ">
-                  Link {index+1}: {item.Title}
+                  Link {index + 1}: {item.Title}
                 </p>
               </SwiperSlide>
             ))}
