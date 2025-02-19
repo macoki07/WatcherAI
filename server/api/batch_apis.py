@@ -1,8 +1,12 @@
 from functools import wraps
+import os
+import re
+import tempfile
 from flask import Blueprint, jsonify, request, send_file
 import utils
 import pandas as pd
 import io
+import zipfile
 
 batch = Blueprint("batch", __name__)
 
@@ -183,3 +187,97 @@ def batch_download_route():
 
     # Send the Excel file as an attachment
     return send_file(file_stream, as_attachment=True, download_name="output.xlsx")
+
+@batch.route("/get_transcript_zip", methods=["POST"])
+def get_transcript_zip_route():
+    if "file" not in request.files:
+        return jsonify({"success": False, "message": "No file provided"}), 400
+
+    excel_file = request.files["file"]
+    if excel_file.filename == "":
+        return jsonify({"success": False, "message": "No selected file"}), 400
+
+    try:
+        df = pd.read_excel(excel_file)
+        if "Link" not in df.columns:
+            return jsonify({"success": False, "message": "Excel file must contain a 'Link' column"}), 400
+
+        # Create a temporary directory for the transcript text files
+        temp_dir = tempfile.mkdtemp()
+
+        txt_files_to_remove = [] 
+
+        # Dictionary to track filename usage (count of titles)
+        name_counts = {}
+
+        # Iterate over each row in the Excel file
+        for idx, row in df.iterrows():
+            url = row.get("Link")
+            if not url or not isinstance(url, str):
+                # Skip empty or non-string values
+                continue
+
+            youtube_link_pattern = r"(http(s)?://(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]+))"
+            link_match = re.search(youtube_link_pattern, url)
+
+            if not link_match:
+                continue
+
+            link = link_match.group(1)
+            video_id = utils.get_video_id(link)
+
+            transcript_file = utils.get_transcript_file(link, video_id)
+            if not transcript_file or not os.path.exists(transcript_file):
+                # Skip if the transcript could not be generated or file not found
+                continue
+
+            # Use the transcript file’s basename (without extension) as the video title.
+            video_title = os.path.splitext(os.path.basename(transcript_file))[0]
+
+            # Check if the video title already exists; if so, append a numeric suffix.
+            if video_title in name_counts:
+                name_counts[video_title] += 1
+                file_name = f"{video_title} ({name_counts[video_title]}).txt"
+            else:
+                name_counts[video_title] = 0
+                file_name = f"{video_title}.txt"
+
+            dest_file_path = os.path.join(temp_dir, file_name)
+
+            # Copy transcript content into the destination file.
+            with open(transcript_file, "r", encoding="utf-8") as src:
+                content = src.read()
+            with open(dest_file_path, "w", encoding="utf-8") as dest:
+                dest.write(content)
+
+            txt_files_to_remove.append(transcript_file)
+
+        # After processing all rows, create a ZIP file containing all transcript files.
+        zip_file = tempfile.mktemp(suffix=".zip")
+        with zipfile.ZipFile(zip_file, "w", zipfile.ZIP_DEFLATED) as zipf:
+            # Walk through the temporary directory and add each file to the ZIP
+            for root, dirs, files in os.walk(temp_dir):
+                for file in files:
+                    full_path = os.path.join(root, file)
+            
+                    # Use the file name only inside the zip
+                    zipf.write(full_path, arcname=file)
+
+        # Send the ZIP file as an attachment.
+        response = send_file(
+            zip_file,
+            as_attachment=True,
+            download_name="transcripts.zip"
+        )
+
+        response.headers["Content-Disposition"] = 'attachment; filename="transcripts.zip"'
+        response.headers["Access-Control-Expose-Headers"] = "Content-Disposition"
+
+        for txt_file in txt_files_to_remove:
+            utils.schedule_file_removal(response, txt_file)
+
+        return response 
+
+    except Exception as e:
+        print(f"Error processing Excel file: {e}")
+        return jsonify({"success": False, "message": "Error processing file", "error": str(e)}), 500
