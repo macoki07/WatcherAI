@@ -3,7 +3,7 @@ import Background from "./components/Background";
 import Button from "./components/Button";
 import InputBox from "./components/InputBox";
 import { FiDownload, FiUpload } from "react-icons/fi";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Header from "./components/Header";
 import axios from "axios";
 import TextBox from "./components/TextBox";
@@ -13,7 +13,8 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation } from "swiper/modules";
 
 function App() {
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(""); 
+  const [transcriptFileUrl, setTranscriptFileUrl] = useState<string | null>(null); 
   const [metadata, setMetadata] = useState<Metadata[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -393,6 +394,55 @@ function App() {
     }
   };
 
+  const getTranscriptFile = async () => {
+    try {
+      const response = await axios.post(
+        "http://localhost:8080/api/single/get_transcript_file",
+        { url: url },
+        {
+          headers: { "Content-Type": "application/json" },
+          responseType: "blob",
+        }
+      );
+
+      const contentDisposition = response.headers["content-disposition"];
+      let filename = "transcript.txt";
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (match) filename = match[1];
+      }
+
+      // Create a URL for the blob
+      const tmp_url = window.URL.createObjectURL(new Blob([response.data]));
+
+      // Create a temporary anchor element to trigger the download
+      const link = document.createElement("a");
+      link.href = tmp_url;
+      link.setAttribute("download", filename); // Name of the downloaded file
+      document.body.appendChild(link);
+      link.click();
+
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success("Transcript downloaded successfully!");
+    } catch (error) {
+      handleApiError(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGetTranscriptFileClick = async () => {
+    try {
+      setLoading(true);
+      await getTranscriptFile();
+    } catch (err) {
+      console.error("Error getting transcript:", err);
+      setLoading(false);
+    }
+  };
+
   return (
     <Background>
       <Toaster position="top-right" richColors expand={true} />
@@ -414,9 +464,6 @@ function App() {
                 />
               </div>
               <div className="flex gap-2">
-                <Button color="info" loading={loading}>
-                  Get Transcript
-                </Button>
                 <Button onClick={handleSummariseUrlClick} loading={loading}>
                   Summarise
                 </Button>
@@ -426,6 +473,13 @@ function App() {
                   loading={loading}
                 >
                   Generate Ideas
+                </Button>
+                <Button
+                  onClick={handleGetTranscriptFileClick}
+                  color="info"
+                  loading={loading}
+                >
+                  Get Transcript 
                 </Button>
               </div>
             </div>
@@ -475,19 +529,23 @@ function App() {
           </div>
 
           <div className="flex flex-wrap gap-2 justify-center">
-            <Button width="32.5%" color="info" loading={loading}>
-              Batch Get Transcript
-            </Button>
-            <Button width="32.5%" onClick={handleBatchSummariseClick} loading={loading}>
+            <Button
+              width="32.5%"
+              onClick={handleBatchSummariseClick}
+              loading={loading}
+            >
               Batch Summarise
             </Button>
             <Button
-              width="32.5%" 
+              width="32.5%"
               color="white"
               loading={loading}
               onClick={handleBatchGenerateIdeasClick}
             >
               Batch Generate Ideas
+            </Button>
+            <Button width="32.5%" color="info" loading={loading}>
+              Batch Get Transcript
             </Button>
           </div>
 

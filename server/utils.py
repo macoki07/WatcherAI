@@ -1,3 +1,7 @@
+import json
+import os
+import time
+from flask import after_this_request
 from ollama import chat  # type: ignore
 from ollama import ChatResponse  # type: ignore
 from youtube_transcript_api import YouTubeTranscriptApi  # type: ignore, for transcript extraction
@@ -36,6 +40,57 @@ def get_transcript(video_id):
 
     return full_transcript
 
+def format_timestamp(seconds):
+    # Convert seconds to [hh:mm:ss] format.
+    hours, remainder = divmod(int(seconds), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours > 0:
+        return f"[{hours:02}:{minutes:02}:{seconds:02}]"
+    return f"[{minutes:02}:{seconds:02}]"
+
+def get_transcript_file(link, video_id, lang="en"):
+    try:
+        # Get video metadata
+        metadata = get_metadata(link)
+        title = metadata.get("title", "Unknown Video Title")
+        title = title.replace(" ", "_").replace("/", "_")  # Ensure a safe filename
+        
+        # Output file path
+        output_file = f"{title}.txt"
+
+        # Get the transcript of the YouTube video
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang])
+
+        # Prepare output content
+        output = [f"Title: {title.replace('_', ' ')}\n"]
+        for entry in transcript:
+            timestamp = format_timestamp(entry['start'])
+            output.append(f"{timestamp} {entry['text']}.\n\n")
+
+        # Save to a text file
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write("".join(output))
+
+        # Return the transcript file path
+        print(f"Transcript saved to {output_file}")
+        return output_file
+
+    except Exception as e:
+        return f"Error: {e}"
+    
+def schedule_file_removal(response, transcript_file):
+    # Schedule file deletion after the request is completed.
+    @after_this_request
+    def remove_file(response):
+        try:
+            time.sleep(1)
+            os.remove(transcript_file)
+            print(f"Deleted transcript file: {transcript_file}")
+        except Exception as e:
+            print(f"Error deleting file: {e}")
+        return response
+
+    return response  # Return the response to continue processing
 
 def encode(full_transcript):
     # Encode the transcript

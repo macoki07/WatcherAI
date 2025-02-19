@@ -1,4 +1,6 @@
 from functools import wraps
+import os
+import tempfile
 from flask import Blueprint, jsonify, request, send_file
 from datetime import datetime
 import re
@@ -83,7 +85,7 @@ def get_metadata_route():
         return jsonify({"success": False, "message": "Invalid YouTube link"}), 400
 
     youtube_link = link.group(0)
-    video_id = utils.get_video_id(youtube_link) # Extract video ID
+    video_id = utils.get_video_id(youtube_link)  # Extract video ID
 
     try:
         info_dict = utils.get_metadata(youtube_link)
@@ -135,6 +137,7 @@ def handle_single_action(metadata_list, action):
 
     return jsonify({"success": True, "metadata": processed_metadata_list}), 200
 
+
 @single.route("/download", methods=["POST"])
 def download_route():
     data = request.get_json()
@@ -166,3 +169,67 @@ def download_route():
 
     return send_file(file_stream, as_attachment=True, download_name="output.xlsx")
 
+
+@single.route("/get_transcript_file", methods=["POST"])
+def get_transcript_file_route():
+    data = request.get_json()
+    print(data)
+
+    if not data.get("url"):
+        return jsonify({"success": False, "message": "No URL provided"}), 400
+
+    url = data["url"]
+
+    youtube_link_pattern = (
+        r"(http(s)?://(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]+))"
+    )
+    
+    # Validate YouTube link
+    link_match = re.search(youtube_link_pattern, url)
+    if not link_match:
+        return jsonify({"success": False, "message": "Invalid YouTube link"}), 400
+
+    # Extract the valid link
+    link = link_match.group(1)
+
+    video_id = utils.get_video_id(link)
+
+    # Call the function to get transcript file 
+    transcript_file = utils.get_transcript_file(link,video_id)
+
+    if not transcript_file:
+        return (
+            jsonify({"success": False, "message": "Failed to generate transcript"}),
+            500,
+        )
+
+    # Extract filename dynamically
+    filename = os.path.basename(transcript_file)
+    print(f"Transcript file: {filename}")
+
+    try:
+        # Ensure the file exists before sending
+        if not os.path.exists(transcript_file):
+            return jsonify({"success": False, "message": "File not found"}), 404
+
+         # Copy file contents to a temporary file (prevents file lock issues)
+        with open(transcript_file, "r", encoding="utf-8") as original:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as temp_file:
+                temp_file.write(original.read().encode("utf-8"))
+                temp_file_path = temp_file.name  # Get the path
+
+        # Send temporary file to client
+        response = send_file(
+            temp_file_path,
+            as_attachment=True,
+            download_name=f"{filename}"
+        )
+
+        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+        response.headers["Access-Control-Expose-Headers"] = "Content-Disposition"
+        
+        return utils.schedule_file_removal(response, transcript_file)  # Call external function
+
+    except Exception as e:
+        print(f"Error sending file: {e}")
+        return jsonify({"success": False, "message": "Error sending file"}), 500
