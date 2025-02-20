@@ -367,7 +367,7 @@ function App() {
       // Create a temporary anchor element to trigger the download
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", "Output.xlsx"); // Name of the downloaded file
+      link.setAttribute("download", "output.zip"); // Name of the downloaded file
       document.body.appendChild(link);
       link.click();
 

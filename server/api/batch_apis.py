@@ -163,6 +163,11 @@ def batch_download_route():
         )
 
     rows = []
+
+    temp_dir = tempfile.mkdtemp()
+    transcript_files = []
+    name_counts = {}
+
     # Iterate over each dictionary in the list and build rows for the Excel file.
     for idx, record in enumerate(data, start=1):
         # Start with S/N as the first column
@@ -176,17 +181,56 @@ def batch_download_route():
         )
         rows.append(row)
 
+        # Get transcript file
+        link = record.get("Link")
+        video_id = record.get("VideoId")
+        if not link or not video_id:
+            continue  # Skip invalid entries
+
+        transcript_file = utils.get_transcript_file(link, video_id)
+        if not transcript_file or not os.path.exists(transcript_file):
+            continue  # Skip if transcript could not be generated or file not found
+
+        # Assign a unique name for the transcript
+        video_title = os.path.splitext(os.path.basename(transcript_file))[0]
+        if video_title in name_counts:
+            name_counts[video_title] += 1
+            file_name = f"{video_title} ({name_counts[video_title]}).txt"
+        else:
+            name_counts[video_title] = 0
+            file_name = f"{video_title}.txt"
+
+        transcript_folder = os.path.join(temp_dir, "transcripts")  # Create a subfolder for transcripts
+        os.makedirs(transcript_folder, exist_ok=True)
+
+        dest_file_path = os.path.join(transcript_folder, file_name)
+        os.rename(transcript_file, dest_file_path)
+        transcript_files.append(dest_file_path)
+
     df = pd.DataFrame(rows)
     df.rename(columns={"Uploaddate": "Upload Date"}, inplace=True)
+    correct_order = ["S/N", "Link", "Title", "Description", "Uploader", "Upload Date", "Results"]
+    df = df[correct_order]  # Reorder columns explicitly
 
-    # Generate an Excel file in memory
-    file_stream = io.BytesIO()
-    with pd.ExcelWriter(file_stream, engine="openpyxl") as writer:
+    # Generate Excel file in the temp directory
+    excel_path = os.path.join(temp_dir, "output.xlsx")
+    with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="Results")
-    file_stream.seek(0)
 
-    # Send the Excel file as an attachment
-    return send_file(file_stream, as_attachment=True, download_name="output.xlsx")
+    # Create a ZIP file to bundle everything
+    zip_file = tempfile.mktemp(suffix=".zip")
+    with zipfile.ZipFile(zip_file, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for file_path in transcript_files: # Add transcript files
+            zipf.write(file_path, arcname=os.path.join("transcripts", os.path.basename(file_path)))
+
+
+        # Add Excel file
+        zipf.write(excel_path, arcname="output.xlsx")
+
+    # Send ZIP file as response
+    response = send_file(zip_file, as_attachment=True, download_name="output.zip")
+
+    return response
 
 @batch.route("/get_transcript_zip", methods=["POST"])
 def get_transcript_zip_route():

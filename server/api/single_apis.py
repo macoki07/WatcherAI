@@ -1,6 +1,7 @@
 from functools import wraps
 import os
 import tempfile
+import zipfile
 from flask import Blueprint, jsonify, request, send_file
 from datetime import datetime
 import re
@@ -144,6 +145,13 @@ def download_route():
     if not data or not isinstance(data, list):
         return jsonify({"success": False, "message": "Invalid metadata format"}), 400
 
+    transcript_file = utils.get_transcript_file(data[0]["Link"],data[0]["VideoId"])
+    if not transcript_file:
+        return (
+            jsonify({"success": False, "message": "Failed to generate transcript"}),
+            500,
+        )
+
     rows = []
     for metadata in data:
         # Start with S/N as the first key
@@ -161,13 +169,35 @@ def download_route():
     df = pd.DataFrame(rows)
     df.rename(columns={"Uploaddate": "Upload Date"}, inplace=True)
 
-    # Generate Excel file
-    file_stream = io.BytesIO()
-    with pd.ExcelWriter(file_stream, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Results")
-    file_stream.seek(0)
+    # Create a temporary directory to store files
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Move transcript file to temp directory
+        transcript_filename = os.path.basename(transcript_file)
+        transcript_path = os.path.join(temp_dir, transcript_filename)
+        os.rename(transcript_file, transcript_path)
 
-    return send_file(file_stream, as_attachment=True, download_name="output.xlsx")
+        # Generate and save the Excel file in the temporary directory
+        excel_path = os.path.join(temp_dir, "output.xlsx")
+        with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="Results")
+
+        # Create a temporary ZIP file
+        zip_file = tempfile.mktemp(suffix=".zip")
+        with zipfile.ZipFile(zip_file, "w", zipfile.ZIP_DEFLATED) as zipf:
+            # Walk through the temporary directory and add each file to the ZIP
+            for root, dirs, files in os.walk(temp_dir):
+                for file in files:
+                    full_path = os.path.join(root, file)
+                    zipf.write(full_path, arcname=file)  # Store with just the filename
+
+        # Send the ZIP file as an attachment
+        response = send_file(
+            zip_file,
+            as_attachment=True,
+            download_name="output.zip"
+        )
+
+        return response
 
 
 @single.route("/get_transcript_file", methods=["POST"])
@@ -196,7 +226,6 @@ def get_transcript_file_route():
 
     # Call the function to get transcript file 
     transcript_file = utils.get_transcript_file(link,video_id)
-
     if not transcript_file:
         return (
             jsonify({"success": False, "message": "Failed to generate transcript"}),
